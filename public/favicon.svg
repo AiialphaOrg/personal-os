@@ -1,16 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <radialGradient id="glow" cx="50%" cy="50%" r="50%">
-    <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.4" />
-    <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
-  </radialGradient>
-  <linearGradient id="core" x1="0%" y1="0%" x2="100%" y2="100%">
-    <stop offset="0%" stop-color="#60a5fa" />
-    <stop offset="50%" stop-color="#3b82f6" />
-    <stop offset="100%" stop-color="#1d4ed8" />
-  </linearGradient>
-  <circle cx="50" cy="50" r="48" fill="url(#glow)" />
-  <circle cx="50" cy="50" r="11" fill="url(#core)" stroke="#ffffff" stroke-width="1.5" />
-  <ellipse cx="50" cy="50" rx="38" ry="15" stroke="#818cf8" stroke-width="2.5" transform="rotate(35 50 50)" />
-  <ellipse cx="50" cy="50" rx="38" ry="15" stroke="#a78bfa" stroke-width="2.5" transform="rotate(110 50 50)" />
-  <ellipse cx="50" cy="50" rx="38" ry="15" stroke="#60a5fa" stroke-width="2.5" transform="rotate(165 50 50)" />
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181b" />
+      <stop offset="100%" stop-color="#09090b" />
+    </linearGradient>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60a5fa" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+  </defs>
+
+  <!-- Sleek Minimal Squircle Background -->
+  <rect width="100" height="100" rx="24" fill="url(#bgGrad)" />
+  <rect width="100" height="100" rx="24" stroke="#27272a" stroke-width="1.5" fill="none" />
+
+  <!-- Outer Precision Arc -->
+  <circle cx="50" cy="50" r="32" stroke="#3f3f46" stroke-width="2.5" stroke-dasharray="120 40" stroke-linecap="round" />
+  
+  <!-- Active Blue Orbit Segment -->
+  <circle cx="50" cy="50" r="32" stroke="url(#blueGrad)" stroke-width="3" stroke-dasharray="70 130" stroke-linecap="round" />
+
+  <!-- Inner Dynamic Ring -->
+  <circle cx="50" cy="50" r="20" stroke="url(#ringGrad)" stroke-width="2" opacity="0.6" />
+
+  <!-- Minimalist Central Core -->
+  <circle cx="50" cy="50" r="10" fill="url(#blueGrad)" />
+  <circle cx="47" cy="47" r="2.5" fill="#ffffff" opacity="0.9" />
 </svg>

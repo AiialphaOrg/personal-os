@@ -25,8 +25,8 @@ import {
   ShoppingCart,
   CreditCard,
   Banknote,
-  ChevronDown,
 } from "lucide-react"
+
 
 export function PlannedPurchasesChecklist() {
   const isMobile = useIsMobile()
@@ -34,8 +34,6 @@ export function PlannedPurchasesChecklist() {
   const { plannedPurchases, wallets } = usePosQuery()
   const mutations = usePosMutations()
 
-  const [filter, setFilter] = useState<"all" | "monthly" | "weekly" | "once">("all")
-  const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [addOpen, setAddOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<PlannedPurchaseItem | null>(null)
   
@@ -55,18 +53,14 @@ export function PlannedPurchasesChecklist() {
   const [dueDate, setDueDate] = useState("")
   const [checkoutError, setCheckoutError] = useState("")
 
-  const filteredItems = plannedPurchases.filter((p) => {
-    if (filter !== "all" && p.frequency !== filter) return false
-    if (categoryFilter !== "all" && p.category !== categoryFilter) return false
-    return true
-  })
-
-  const plannedList = filteredItems.filter((p) => p.status !== "purchased")
-  const purchasedList = filteredItems.filter((p) => p.status === "purchased")
+  const plannedList = plannedPurchases.filter((p) => p.status !== "purchased")
+  const purchasedList = plannedPurchases.filter((p) => p.status === "purchased")
 
   const totalPlannedAmt = plannedPurchases
     .filter((p) => p.status !== "purchased")
     .reduce((sum, p) => sum + p.estimatedAmount, 0)
+
+
 
   const openAdd = () => {
     setEditingItem(null)
@@ -382,37 +376,7 @@ export function PlannedPurchasesChecklist() {
         </button>
       </div>
 
-      {/* Dropdown Filters (Frequency & Category) */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <div className="relative">
-          <select
-            value={filter}
-            onChange={(e: any) => setFilter(e.target.value)}
-            className="w-full appearance-none rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground outline-none cursor-pointer pr-8 shadow-2xs hover:bg-muted/40 transition-colors"
-          >
-            <option value="all">All Plans ({plannedPurchases.length})</option>
-            <option value="once">One-Time ({plannedPurchases.filter(p => p.frequency === "once").length})</option>
-            <option value="weekly">Weekly ({plannedPurchases.filter(p => p.frequency === "weekly").length})</option>
-            <option value="monthly">Monthly ({plannedPurchases.filter(p => p.frequency === "monthly").length})</option>
-          </select>
-          <ChevronDown className="size-3.5 absolute right-3 top-3 text-muted-foreground pointer-events-none" />
-        </div>
-
-        <div className="relative">
-          <select
-            value={categoryFilter}
-            onChange={(e: any) => setCategoryFilter(e.target.value)}
-            className="w-full appearance-none rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground outline-none cursor-pointer pr-8 shadow-2xs hover:bg-muted/40 transition-colors"
-          >
-            <option value="all">All Categories</option>
-            <option value="goods">Goods & Shopping</option>
-            <option value="food">Food & Groceries</option>
-            <option value="services">Services & Utilities</option>
-            <option value="other">Other</option>
-          </select>
-          <ChevronDown className="size-3.5 absolute right-3 top-3 text-muted-foreground pointer-events-none" />
-        </div>
-      </div>
+      {/* Checklist Items */}
 
 
       {/* Checklist Items */}

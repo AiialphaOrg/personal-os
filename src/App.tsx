@@ -18,7 +18,10 @@ import { CapturePage } from "@/pages/CapturePage"
 import { WalletDetailPage } from "@/pages/WalletDetailPage"
 import { LoginPage } from "@/pages/LoginPage"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { SplashScreen } from "@/components/splash-screen"
+import { PwaInstaller } from "@/components/pwa-installer"
 import { startReminderScheduler } from "@/lib/reminders/scheduler"
+
 import { useAppDispatch, useAppSelector } from "@/store/hooks"
 import { checkAuthThunk } from "@/store/authSlice"
 import { fetchPosData, setOnlineStatus } from "@/store/dataSlice"
@@ -99,7 +102,10 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <BrowserRouter>
+          <SplashScreen />
+          <PwaInstaller />
           <Routes>
+
             <Route
               path="/login"
               element={
