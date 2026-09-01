@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router"
 import { Sparkles, Loader2, Lock, Mail, User, AlertCircle, Eye, EyeOff } from "lucide-react"
 
@@ -13,8 +13,9 @@ import {
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { useAppDispatch } from "@/store/hooks"
-import { loginDirectThunk, registerThunk, googleAuthThunk } from "@/store/authSlice"
+import { loginDirectThunk, registerThunk, googleAuthThunk, setAuthSession } from "@/store/authSlice"
 import { fetchPosData } from "@/store/dataSlice"
+import { startNeonGoogleAuth, handleNeonAuthCallback } from "@/lib/neon-auth"
 
 function OfficialGoogleLogo({ className }: { className?: string }) {
   return (
@@ -54,6 +55,15 @@ export function LoginForm({
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
 
+  // Listen for Neon Auth redirect callback on page load
+  useEffect(() => {
+    const callbackSession = handleNeonAuthCallback()
+    if (callbackSession) {
+      dispatch(setAuthSession(callbackSession))
+      finishAuth(callbackSession.user.name)
+    }
+  }, [dispatch])
+
   const finishAuth = (userName: string) => {
     dispatch(fetchPosData())
     toast.success(`Welcome, ${userName}!`)
@@ -64,6 +74,13 @@ export function LoginForm({
     setErrorMessage(null)
     setGoogleLoading(true)
     try {
+      // 1. Try Neon Auth Google Redirect if VITE_NEON_AUTH_URL is configured
+      const neonResult = await startNeonGoogleAuth()
+      if (neonResult.handled) {
+        return
+      }
+
+      // 2. Fallback to direct backend Google auth endpoint
       const result = await dispatch(googleAuthThunk({ email: "user@gmail.com", name: "Google Account" })).unwrap()
       setGoogleLoading(false)
       finishAuth(result.user.name)
@@ -74,6 +91,7 @@ export function LoginForm({
       toast.error(msg)
     }
   }
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

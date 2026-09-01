@@ -3,8 +3,8 @@
  * Single Source of Truth backend connection wrapper.
  */
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:4000/api"
+const rawApiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000"
+const API_BASE_URL = rawApiUrl.endsWith("/api") ? rawApiUrl : `${rawApiUrl}/api`
 
 
 export interface UserSession {
