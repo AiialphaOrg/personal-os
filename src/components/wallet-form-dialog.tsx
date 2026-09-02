@@ -37,6 +37,8 @@ import { useUiStore } from "@/stores/ui-store"
 import { usePosQuery, usePosMutations } from "@/hooks/use-pos-query"
 import { toast } from "sonner"
 
+import { FormattedNumberInput } from "@/components/ui/formatted-number-input"
+
 const formSchema = z
   .object({
     name: z.string().trim().min(1, "Name required"),
@@ -177,7 +179,6 @@ export function WalletFormDialog({ onSaved }: Props) {
     }
   }
 
-
   const remove = async () => {
     if (!editingWalletId) return
     try {
@@ -192,12 +193,17 @@ export function WalletFormDialog({ onSaved }: Props) {
 
   const body = (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Name</label>
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Bank, Savings…" />
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-foreground">Account Name</label>
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Main Bank, Cash, Savings…"
+          className="h-11 rounded-lg text-sm"
+        />
       </div>
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Type</label>
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-foreground">Account Type</label>
         <div className="flex gap-2">
           {(["spending", "savings", "investment"] as const).map((k) => (
             <Button
@@ -205,7 +211,7 @@ export function WalletFormDialog({ onSaved }: Props) {
               type="button"
               variant={kind === k ? "default" : "outline"}
               size="sm"
-              className="capitalize flex-1"
+              className="capitalize flex-1 h-10 rounded-lg text-xs font-semibold"
               onClick={() => setKind(k)}
             >
               {k}
@@ -214,49 +220,48 @@ export function WalletFormDialog({ onSaved }: Props) {
         </div>
       </div>
       {kind !== "investment" ? (
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Balance</label>
-          <Input
-            type="number"
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-foreground">Current Balance</label>
+          <FormattedNumberInput
             value={balance}
-            onChange={(e) => setBalance(e.target.value)}
+            onValueChange={setBalance}
             placeholder="0"
+            className="h-11 rounded-lg text-sm font-semibold"
           />
         </div>
       ) : (
         <>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Ticker Symbol</label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-foreground">Ticker Symbol</label>
             <Input
               value={symbol}
               onChange={(e) => setSymbol(e.target.value.toUpperCase())}
               placeholder="AAPL, NVDA, BTC-USD…"
+              className="h-11 rounded-lg text-sm uppercase"
             />
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Shares / Units</label>
-            <Input
-              type="number"
-              step="any"
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-foreground">Shares / Units</label>
+            <FormattedNumberInput
               value={shares}
-              onChange={(e) => setShares(e.target.value)}
+              onValueChange={setShares}
               placeholder="0"
+              className="h-11 rounded-lg text-sm"
             />
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Last Price (USD)</label>
-            <Input
-              type="number"
-              step="any"
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-foreground">Last Price (USD)</label>
+            <FormattedNumberInput
               value={lastPrice}
-              onChange={(e) => setLastPrice(e.target.value)}
+              onValueChange={setLastPrice}
               placeholder="Optional if auto-fetch works"
+              className="h-11 rounded-lg text-sm"
             />
           </div>
         </>
       )}
 
-      <div className="flex items-center justify-between rounded-lg border border-border p-3 bg-muted/20">
+      <div className="flex items-center justify-between rounded-lg border border-border p-3.5 bg-muted/20">
         <div>
           <p className="text-xs font-semibold text-foreground">Default Wallet</p>
           <p className="text-[11px] text-muted-foreground">Auto-selected for new transactions</p>
@@ -265,34 +270,45 @@ export function WalletFormDialog({ onSaved }: Props) {
           type="checkbox"
           checked={isDefault}
           onChange={(e) => setIsDefault(e.target.checked)}
-          className="size-4 rounded accent-primary cursor-pointer"
+          className="size-4.5 rounded accent-primary cursor-pointer"
         />
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-xs font-medium text-destructive">{error}</p>}
     </div>
-
-
   )
 
   const footer = (
-    <div className="flex w-full items-center justify-between gap-2">
+    <div className="flex w-full items-center justify-between gap-2 pt-2">
       {editingWalletId ? (
         <Button
           type="button"
           variant="destructive"
-          size="sm"
+          size="default"
           onClick={() => setDeleteConfirmOpen(true)}
+          className="h-11 rounded-xl px-4 text-xs font-semibold"
         >
           Delete
         </Button>
       ) : <div />}
       <div className="flex gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={closeWalletForm}>
+        <Button
+          type="button"
+          variant="outline"
+          size="default"
+          onClick={closeWalletForm}
+          className="h-11 rounded-xl px-4 text-xs"
+        >
           Cancel
         </Button>
-        <Button type="button" size="sm" onClick={save} disabled={fetching}>
-          {fetching ? "Fetching Price…" : "Save"}
+        <Button
+          type="button"
+          size="default"
+          onClick={save}
+          disabled={fetching}
+          className="h-11 rounded-xl px-5 text-xs font-semibold"
+        >
+          {fetching ? "Fetching Price…" : "Save Account"}
         </Button>
       </div>
     </div>
@@ -302,19 +318,25 @@ export function WalletFormDialog({ onSaved }: Props) {
     <>
       {isMobile ? (
         <Drawer open={walletFormOpen} onOpenChange={(o) => !o && closeWalletForm()}>
-          <DrawerContent className="p-4">
+          <DrawerContent className="p-0">
             <DrawerHeader>
-              <DrawerTitle>{editingWalletId ? "Edit Account" : "Add Account"}</DrawerTitle>
+              <DrawerTitle>
+                {editingWalletId ? "Edit Account" : "Add Account"}
+              </DrawerTitle>
             </DrawerHeader>
-            <div className="px-4 py-2">{body}</div>
-            <DrawerFooter>{footer}</DrawerFooter>
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 pb-6">
+              {body}
+            </div>
+            <DrawerFooter className="p-4">{footer}</DrawerFooter>
           </DrawerContent>
         </Drawer>
       ) : (
         <Dialog open={walletFormOpen} onOpenChange={(o) => !o && closeWalletForm()}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>{editingWalletId ? "Edit Account" : "Add Account"}</DialogTitle>
+              <DialogTitle className="text-base font-bold">
+                {editingWalletId ? "Edit Account" : "Add Account"}
+              </DialogTitle>
             </DialogHeader>
             {body}
             <DialogFooter>{footer}</DialogFooter>

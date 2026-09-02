@@ -3,7 +3,9 @@
  * Single Source of Truth backend connection wrapper.
  */
 
-const rawApiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000"
+const rawApiUrl = (import.meta.env.VITE_API_URL || "https://personal-backend-blond.vercel.app")
+  .trim()
+  .replace(/\/+$/, "")
 const API_BASE_URL = rawApiUrl.endsWith("/api") ? rawApiUrl : `${rawApiUrl}/api`
 
 
@@ -63,8 +65,11 @@ export async function apiFetch<T = any>(path: string, options: RequestInit = {})
     headers.set("Authorization", `Bearer ${token}`)
   }
 
+  const cleanPath = path.startsWith("/") ? path : `/${path}`
+  const fullUrl = `${API_BASE_URL}${cleanPath}`.replace(/([^:])\/{2,}/g, "$1/")
+
   try {
-    const res = await fetch(`${API_BASE_URL}${path}`, {
+    const res = await fetch(fullUrl, {
       ...options,
       headers,
     })

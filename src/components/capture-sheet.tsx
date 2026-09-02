@@ -395,8 +395,8 @@ export function CaptureSheet({
           </div>
         )}
 
-        <DrawerHeader className="px-5 pt-6 pb-2 text-left">
-          <DrawerTitle className="text-xl font-bold tracking-tight">
+        <DrawerHeader className="px-5 py-3.5">
+          <DrawerTitle className="text-base font-bold tracking-tight">
             {presets?.id ? "Edit " : "Add "}
             {copy.title.toLowerCase()}
           </DrawerTitle>
@@ -557,33 +557,6 @@ export function CaptureSheet({
                     </div>
                   )}
                 </div>
-                {type === "owed_to_me" && (
-                  <div className="space-y-1.5">
-                    <FieldLabel>Type</FieldLabel>
-                    <div className="flex gap-1.5">
-                      {(
-                        [
-                          { id: "client" as const, label: "Client" },
-                          { id: "loan" as const, label: "I lent" },
-                          { id: "personal" as const, label: "Other" },
-                        ] as const
-                      ).map((k) => (
-                        <button
-                          key={k.id}
-                          type="button"
-                          onClick={() => setDebtKind(k.id)}
-                          className={`h-9 flex-1 rounded-lg border text-xs font-medium ${
-                            debtKind === k.id
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "border-border text-muted-foreground"
-                          }`}
-                        >
-                          {k.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </>
             )}
 

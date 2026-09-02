@@ -1,5 +1,5 @@
 import {
-  ArrowRightLeft,
+  HandCoins,
   ArrowDownLeft,
   ArrowUpRight,
   Receipt,
@@ -16,7 +16,7 @@ type ActionDef = {
 }
 
 const QUICK_ACTIONS: ActionDef[] = [
-  { type: "transfer", label: "Transfer", icon: ArrowRightLeft },
+  { type: "owed_to_me", label: "Record Loan", icon: HandCoins },
   { type: "income", label: "Add Money", icon: ArrowDownLeft },
   { type: "expense", label: "Expense", icon: ArrowUpRight },
   { type: "bill", label: "Pay Bill", icon: Receipt },

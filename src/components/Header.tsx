@@ -17,8 +17,8 @@ export const PAGE_TITLES: Record<string, string> = {
   "/capture/expense": "Add Expense",
   "/capture/income": "Add Income",
   "/capture/transfer": "Transfer Funds",
-  "/capture/i_owe": "Add Payable",
-  "/capture/owed_to_me": "Add Receivable",
+  "/capture/i_owe": "Add Payable (I Owe)",
+  "/capture/owed_to_me": "Record Loan (Owed to Me)",
 }
 
 type HeaderProps = {

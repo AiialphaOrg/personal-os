@@ -276,7 +276,7 @@ export function MoneyPage() {
 
   return (
     <div
-      className="mx-auto max-w-xl space-y-4 pb-10"
+      className="space-y-4 pb-10"
       style={{ paddingBottom: keyboardInset > 0 ? keyboardInset : undefined }}
     >
       {(listening || hint || aiProgress) && (
@@ -541,11 +541,13 @@ export function MoneyPage() {
       {/* Settle Debt Modal / Drawer */}
       {isMobile ? (
         <Drawer open={settleOpen} onOpenChange={setSettleOpen}>
-          <DrawerContent className="px-4 pb-6">
-            <DrawerHeader className="px-0 text-left">
-              <DrawerTitle>Settle debt</DrawerTitle>
+          <DrawerContent className="p-0">
+            <DrawerHeader>
+              <DrawerTitle>Settle Debt</DrawerTitle>
             </DrawerHeader>
-            {settleForm}
+            <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 space-y-4">
+              {settleForm}
+            </div>
           </DrawerContent>
         </Drawer>
       ) : (

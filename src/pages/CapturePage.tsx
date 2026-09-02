@@ -155,9 +155,7 @@ export function CapturePage() {
 
 
   const [person, setPerson] = useState(() => searchParams.get("person") || "")
-  const [debtKind, setDebtKind] = useState<DebtKind>(
-    () => (searchParams.get("debtKind") as DebtKind) || "loan"
-  )
+  const debtKind: DebtKind = (searchParams.get("debtKind") as DebtKind) || "loan"
   const [debtSubType, setDebtSubType] = useState<"cash" | "credit">("cash")
   const [dueDate, setDueDate] = useState(() => searchParams.get("dueDate") || "")
   const [note, setNote] = useState(() => searchParams.get("note") || "")
@@ -266,7 +264,7 @@ export function CapturePage() {
 
   return (
     <div
-      className="mx-auto max-w-lg pb-10 space-y-4"
+      className=" pb-10 space-y-4"
       style={{ paddingBottom: keyboardInset > 0 ? keyboardInset : undefined }}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -359,12 +357,12 @@ export function CapturePage() {
 
         {/* 2. Amount Field: Clean, Large, Left-Aligned with Full-Width Grid Quick Numbers */}
         {rawType !== "task" && (
-          <section className="rounded-lg border border-border bg-card p-4 text-left space-y-3 shadow-xs">
+          <section className="rounded-lg border border-border bg-card p-4 sm:p-5 text-left space-y-3 shadow-xs">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Amount
             </label>
             <div className="flex items-baseline text-left">
-              <span className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mr-1.5 select-none">
+              <span className="text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground mr-2 select-none">
                 {currency}
               </span>
               <FormattedNumberInput
@@ -372,7 +370,7 @@ export function CapturePage() {
                 onValueChange={setAmount}
                 placeholder="0"
                 autoFocus
-                className="h-12 border-none bg-transparent text-left text-3xl sm:text-4xl font-bold tracking-tight text-foreground outline-none focus-visible:ring-0 p-0 w-full"
+                className="border-none bg-transparent text-left text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground outline-none focus-visible:ring-0 p-0 w-full"
               />
             </div>
 
@@ -568,34 +566,6 @@ export function CapturePage() {
                     )}
                 </div>
               </div>
-
-              {rawType === "owed_to_me" && (
-                <div className="space-y-1.5 pt-1">
-                  <label className="text-[11px] font-medium text-muted-foreground">
-                    Receivable Type
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { id: "loan" as const, label: "I lent cash" },
-                      { id: "client" as const, label: "Client invoice" },
-                      { id: "personal" as const, label: "Other" },
-                    ].map((k) => (
-                      <button
-                        key={k.id}
-                        type="button"
-                        onClick={() => setDebtKind(k.id)}
-                        className={`h-9 rounded-md border text-xs font-semibold transition-all ${
-                          debtKind === k.id
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {k.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 

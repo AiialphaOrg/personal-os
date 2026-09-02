@@ -19,6 +19,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { FormattedNumberInput } from "@/components/ui/formatted-number-input"
 import {
   Dialog,
   DialogContent,
@@ -291,11 +292,9 @@ export function DebtDetailPage() {
               <label className="text-xs font-semibold text-foreground">
                 Payment Amount ({currency})
               </label>
-              <input
-                type="number"
-                step="any"
+              <FormattedNumberInput
                 value={settleAmount}
-                onChange={(e) => setSettleAmount(e.target.value)}
+                onValueChange={setSettleAmount}
                 placeholder="0.00"
                 className="w-full h-11 px-3.5 rounded-lg border border-border bg-card text-foreground font-semibold tabular-nums text-sm outline-none focus:ring-2 focus:ring-primary/20"
               />

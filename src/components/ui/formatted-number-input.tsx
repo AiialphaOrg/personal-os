@@ -31,7 +31,7 @@ export const FormattedNumberInput = React.forwardRef<HTMLInputElement, Formatted
     return (
       <div className="relative flex items-center w-full">
         {prefix && (
-          <span className="absolute left-3 text-sm font-semibold text-muted-foreground select-none">
+          <span className="absolute left-3 text-base sm:text-lg font-bold text-muted-foreground select-none pointer-events-none">
             {prefix}
           </span>
         )}
@@ -42,7 +42,7 @@ export const FormattedNumberInput = React.forwardRef<HTMLInputElement, Formatted
           inputMode="decimal"
           value={formatted}
           onChange={handleChange}
-          className={`${prefix ? "pl-8" : ""} ${className || ""}`}
+          className={`${prefix ? "pl-9" : ""} text-base sm:text-lg font-semibold tabular-nums ${className || ""}`}
         />
       </div>
     )

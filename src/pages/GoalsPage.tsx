@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { FormattedNumberInput } from "@/components/ui/formatted-number-input"
 import {
   Dialog,
   DialogContent,
@@ -150,45 +151,49 @@ export function GoalsPage() {
 
   const createForm = (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Name</label>
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-foreground">Goal Name</label>
         <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Emergency fund, laptop…"
+          placeholder="e.g. Emergency fund, Laptop, Relocation…"
+          className="h-11 rounded-lg text-sm"
         />
       </div>
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Target</label>
-        <Input
-          type="number"
-          inputMode="decimal"
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-foreground">Target Amount ({currency})</label>
+        <FormattedNumberInput
           value={target}
-          onChange={(e) => setTarget(e.target.value)}
-          className="text-lg font-semibold tabular-nums"
+          onValueChange={setTarget}
+          className="h-11 rounded-lg text-sm font-semibold tabular-nums"
           placeholder="0"
         />
       </div>
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Deadline (optional)</label>
-        <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-foreground">Target Deadline (Optional)</label>
+        <Input
+          type="date"
+          value={deadline}
+          onChange={(e) => setDeadline(e.target.value)}
+          className="h-11 rounded-lg text-sm font-medium"
+        />
       </div>
-      {createError && <p className="text-sm text-destructive">{createError}</p>}
+      {createError && <p className="text-xs font-medium text-destructive">{createError}</p>}
       {isMobile ? (
-        <DrawerFooter className="px-0">
-          <Button className="w-full" onClick={saveGoal}>
-            Save goal
+        <DrawerFooter className="px-0 pt-2 gap-2">
+          <Button className="w-full h-12 rounded-xl text-sm font-semibold shadow-xs" onClick={saveGoal}>
+            Save Goal
           </Button>
-          <Button variant="outline" className="w-full" onClick={() => setCreateOpen(false)}>
+          <Button variant="outline" className="w-full h-11 rounded-xl text-xs" onClick={() => setCreateOpen(false)}>
             Cancel
           </Button>
         </DrawerFooter>
       ) : (
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setCreateOpen(false)}>
+        <DialogFooter className="pt-2">
+          <Button variant="outline" className="h-11 rounded-xl px-4 text-xs" onClick={() => setCreateOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={saveGoal}>Save goal</Button>
+          <Button className="h-11 rounded-xl px-5 text-xs font-semibold" onClick={saveGoal}>Save Goal</Button>
         </DialogFooter>
       )}
     </div>
@@ -196,26 +201,28 @@ export function GoalsPage() {
 
   const contribForm = (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Add to <span className="font-medium text-foreground">{activeGoal?.title}</span>
-        {" · "}
-        {currency}
-        {(activeGoal?.current || 0)?.toLocaleString()} / {currency}
-        {(activeGoal?.target || 0)?.toLocaleString()}
-      </p>
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Amount</label>
-        <Input
-          type="number"
-          inputMode="decimal"
+      <div className="rounded-lg bg-muted/40 p-3 space-y-1 border border-border/40">
+        <p className="text-xs font-semibold text-foreground">
+          Contributing to <span className="font-bold text-primary">{activeGoal?.title}</span>
+        </p>
+        <p className="text-[11px] text-muted-foreground">
+          Current Progress: {currency}{(activeGoal?.current || 0)?.toLocaleString()} / {currency}{(activeGoal?.target || 0)?.toLocaleString()}
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-foreground">Contribution Amount ({currency})</label>
+        <FormattedNumberInput
           value={contribAmount}
-          onChange={(e) => setContribAmount(e.target.value)}
-          className="text-lg font-semibold tabular-nums"
+          onValueChange={setContribAmount}
+          placeholder="0"
+          className="h-11 rounded-lg text-sm font-semibold tabular-nums"
         />
       </div>
-      <div className="space-y-2">
-        <label className="text-sm font-medium">From wallet</label>
-        <div className="flex gap-2">
+
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-foreground">Deduct From Wallet</label>
+        <div className="grid grid-cols-2 gap-2">
           {wallets
             .filter((w) => w.kind !== "investment")
             .map((w) => (
@@ -223,10 +230,10 @@ export function GoalsPage() {
               key={w.id}
               type="button"
               onClick={() => setContribWallet(w.id)}
-              className={`flex-1 rounded-lg border px-2 py-2 text-xs font-medium ${
+              className={`rounded-xl border p-2.5 text-xs font-semibold transition-all ${
                 contribWallet === w.id
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground"
+                  ? "border-primary bg-primary/10 text-primary shadow-2xs font-bold"
+                  : "border-border text-muted-foreground hover:text-foreground"
               }`}
             >
               {w.name}
@@ -234,22 +241,22 @@ export function GoalsPage() {
           ))}
         </div>
       </div>
-      {contribError && <p className="text-sm text-destructive">{contribError}</p>}
+      {contribError && <p className="text-xs font-medium text-destructive">{contribError}</p>}
       {isMobile ? (
-        <DrawerFooter className="px-0">
-          <Button className="w-full" onClick={confirmContribute}>
-            Contribute
+        <DrawerFooter className="px-0 pt-2 gap-2">
+          <Button className="w-full h-12 rounded-xl text-sm font-semibold shadow-xs" onClick={confirmContribute}>
+            Contribute Funds
           </Button>
-          <Button variant="outline" className="w-full" onClick={() => setContribOpen(false)}>
+          <Button variant="outline" className="w-full h-11 rounded-xl text-xs" onClick={() => setContribOpen(false)}>
             Cancel
           </Button>
         </DrawerFooter>
       ) : (
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setContribOpen(false)}>
+        <DialogFooter className="pt-2">
+          <Button variant="outline" className="h-11 rounded-xl px-4 text-xs" onClick={() => setContribOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={confirmContribute}>Contribute</Button>
+          <Button className="h-11 rounded-xl px-5 text-xs font-semibold" onClick={confirmContribute}>Contribute Funds</Button>
         </DialogFooter>
       )}
     </div>
@@ -336,19 +343,23 @@ export function GoalsPage() {
       {isMobile ? (
         <>
           <Drawer open={createOpen} onOpenChange={setCreateOpen}>
-            <DrawerContent>
+            <DrawerContent className="p-0">
               <DrawerHeader>
-                <DrawerTitle>New goal</DrawerTitle>
+                <DrawerTitle>New Goal</DrawerTitle>
               </DrawerHeader>
-              <div className="px-4 pb-4">{createForm}</div>
+              <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 space-y-4">
+                {createForm}
+              </div>
             </DrawerContent>
           </Drawer>
           <Drawer open={contribOpen} onOpenChange={setContribOpen}>
-            <DrawerContent>
+            <DrawerContent className="p-0">
               <DrawerHeader>
-                <DrawerTitle>Contribute</DrawerTitle>
+                <DrawerTitle>Contribute to Goal</DrawerTitle>
               </DrawerHeader>
-              <div className="px-4 pb-4">{contribForm}</div>
+              <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 space-y-4">
+                {contribForm}
+              </div>
             </DrawerContent>
           </Drawer>
         </>

@@ -3,6 +3,7 @@ import { usePosQuery, usePosMutations } from "@/hooks/use-pos-query"
 import { type SubscriptionItem, SUBSCRIPTION_CATEGORIES } from "@/lib/storage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { FormattedNumberInput } from "@/components/ui/formatted-number-input"
 import {
   Dialog,
   DialogContent,
@@ -158,7 +159,7 @@ export function SubscriptionsManager() {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="e.g. Netflix, Spotify, Internet Fibre"
-          className="h-9 rounded-lg"
+          className="h-11 rounded-lg text-sm"
           required
         />
       </div>
@@ -166,12 +167,11 @@ export function SubscriptionsManager() {
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-foreground">Amount ({currency})</label>
-          <Input
-            type="number"
+          <FormattedNumberInput
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onValueChange={setAmount}
             placeholder="0"
-            className="h-9 rounded-lg tabular-nums"
+            className="h-11 rounded-lg text-sm font-semibold tabular-nums"
             required
           />
         </div>
@@ -181,47 +181,42 @@ export function SubscriptionsManager() {
           <select
             value={frequency}
             onChange={(e: any) => setFrequency(e.target.value)}
-            className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground focus:outline-none"
+            className="h-11 w-full rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground focus:outline-none"
           >
-            <option value="monthly">Monthly</option>
             <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
             <option value="yearly">Yearly</option>
           </select>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {frequency === "monthly" && (
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-foreground">Billing Day of Month</label>
-            <select
-              value={billingDay}
-              onChange={(e) => setBillingDay(e.target.value)}
-              className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground focus:outline-none"
-            >
-              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                  {d === 1 ? "st" : d === 2 ? "nd" : d === 3 ? "rd" : "th"} of month
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-foreground">Deduct from Wallet</label>
+          <label className="text-xs font-semibold text-foreground">Payment Account</label>
           <select
             value={walletId}
             onChange={(e) => setWalletId(e.target.value)}
-            className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground focus:outline-none"
+            className="h-11 w-full rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground focus:outline-none"
           >
-            {wallets.map((w) => (
+            {wallets.filter((w) => w.kind !== "investment").map((w) => (
               <option key={w.id} value={w.id}>
                 {w.name} ({currency}{w.balance.toLocaleString()})
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-foreground">Billing Day (1-31)</label>
+          <Input
+            type="number"
+            min={1}
+            max={31}
+            value={billingDay}
+            onChange={(e) => setBillingDay(e.target.value)}
+            className="h-11 rounded-lg text-sm"
+            required
+          />
         </div>
       </div>
 
@@ -233,7 +228,7 @@ export function SubscriptionsManager() {
               key={c.id}
               type="button"
               onClick={() => setCategory(c.id)}
-              className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold capitalize transition-all ${
+              className={`rounded-lg border px-2.5 py-2 text-xs font-semibold capitalize transition-all ${
                 category === c.id
                   ? "border-primary bg-primary/10 text-primary font-bold shadow-2xs"
                   : "border-border text-muted-foreground hover:text-foreground"
@@ -248,7 +243,7 @@ export function SubscriptionsManager() {
       {error && <p className="text-xs font-medium text-destructive">{error}</p>}
 
       <div className="pt-2">
-        <Button type="submit" className="w-full h-10 rounded-lg text-xs font-semibold">
+        <Button type="submit" className="w-full h-12 rounded-xl text-sm font-semibold shadow-xs">
           {editingSub ? "Save Changes" : "Create Subscription"}
         </Button>
       </div>
@@ -431,23 +426,24 @@ export function SubscriptionsManager() {
       </div>
 
       {/* Modal / Drawer Form */}
-
       {isMobile ? (
         <Drawer open={formOpen} onOpenChange={setFormOpen}>
-          <DrawerContent className="p-4 space-y-4">
-            <DrawerHeader className="p-0">
-              <DrawerTitle className="text-sm font-bold">
+          <DrawerContent className="p-0">
+            <DrawerHeader>
+              <DrawerTitle>
                 {editingSub ? "Edit Subscription" : "New Subscription"}
               </DrawerTitle>
             </DrawerHeader>
-            {formBody}
+            <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 space-y-4">
+              {formBody}
+            </div>
           </DrawerContent>
         </Drawer>
       ) : (
         <Dialog open={formOpen} onOpenChange={setFormOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-sm font-bold">
+              <DialogTitle className="text-base font-bold">
                 {editingSub ? "Edit Subscription" : "New Subscription"}
               </DialogTitle>
             </DialogHeader>

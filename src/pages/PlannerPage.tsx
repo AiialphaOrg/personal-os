@@ -470,27 +470,33 @@ export function PlannerPage() {
       {isMobile ? (
         <>
           <Drawer open={taskOpen} onOpenChange={setTaskOpen}>
-            <DrawerContent className="px-4 pb-6">
-              <DrawerHeader className="px-0 text-left">
-                <DrawerTitle>New task</DrawerTitle>
+            <DrawerContent className="p-0">
+              <DrawerHeader>
+                <DrawerTitle>New Task</DrawerTitle>
               </DrawerHeader>
-              {taskForm}
+              <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 space-y-4">
+                {taskForm}
+              </div>
             </DrawerContent>
           </Drawer>
           <Drawer open={noteOpen} onOpenChange={setNoteOpen}>
-            <DrawerContent className="px-4 pb-6">
-              <DrawerHeader className="px-0 text-left">
-                <DrawerTitle>New note</DrawerTitle>
+            <DrawerContent className="p-0">
+              <DrawerHeader>
+                <DrawerTitle>New Note</DrawerTitle>
               </DrawerHeader>
-              {noteForm}
+              <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 space-y-4">
+                {noteForm}
+              </div>
             </DrawerContent>
           </Drawer>
           <Drawer open={reminderOpen} onOpenChange={setReminderOpen}>
-            <DrawerContent className="px-4 pb-6">
-              <DrawerHeader className="px-0 text-left">
-                <DrawerTitle>New reminder</DrawerTitle>
+            <DrawerContent className="p-0">
+              <DrawerHeader>
+                <DrawerTitle>New Reminder</DrawerTitle>
               </DrawerHeader>
-              {reminderForm}
+              <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 space-y-4">
+                {reminderForm}
+              </div>
             </DrawerContent>
           </Drawer>
         </>

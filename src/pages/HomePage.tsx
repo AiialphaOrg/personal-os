@@ -80,8 +80,7 @@ export function HomePage() {
 
 
 
-  // 100% Online Data from TanStack Query + Redux
-  const { wallets, transactions: timelineItems, debts, metrics } = usePosQuery()
+  const { wallets, transactions: timelineItems, debts, metrics, isLoading } = usePosQuery()
 
 
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -232,7 +231,7 @@ export function HomePage() {
 
   return (
     <div
-      className="mx-auto max-w-xl space-y-3.5"
+      className="space-y-3.5"
       style={{ paddingBottom: keyboardInset > 0 ? keyboardInset : undefined }}
     >
       {(hint || aiProgress) && (
@@ -271,27 +270,38 @@ export function HomePage() {
 
 
         {/* Big Spending & Income stats */}
-        <div className="grid grid-cols-2 gap-3 pt-1">
-          <div className="rounded-md bg-muted/40 p-3 space-y-1">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-              {/* <TrendingDown className="size-3.5 text-red-500" /> */}
-              <span>Spent Today</span>
+        {isLoading && timelineItems.length === 0 ? (
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div className="rounded-md bg-muted/40 p-3 space-y-2 animate-pulse">
+              <div className="h-3 w-20 bg-muted rounded" />
+              <div className="h-7 w-28 bg-muted rounded" />
             </div>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-foreground tabular-nums">
-              {currency}{spentToday.toLocaleString()}
-            </p>
+            <div className="rounded-md bg-muted/40 p-3 space-y-2 animate-pulse">
+              <div className="h-3 w-24 bg-muted rounded" />
+              <div className="h-7 w-28 bg-muted rounded" />
+            </div>
           </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div className="rounded-md bg-muted/40 p-3 space-y-1">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+                <span>Spent Today</span>
+              </div>
+              <p className="text-xl sm:text-2xl font-bold tracking-tight text-foreground tabular-nums">
+                {currency}{spentToday.toLocaleString()}
+              </p>
+            </div>
 
-          <div className="rounded-md bg-muted/40 p-3 space-y-1">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-              {/* <TrendingUp className="size-3.5 text-emerald-500" /> */}
-              <span>Income / Inflow</span>
+            <div className="rounded-md bg-muted/40 p-3 space-y-1">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+                <span>Income / Inflow</span>
+              </div>
+              <p className="text-xl sm:text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 tabular-nums">
+                +{currency}{incomeToday.toLocaleString()}
+              </p>
             </div>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 tabular-nums">
-              +{currency}{incomeToday.toLocaleString()}
-            </p>
           </div>
-        </div>
+        )}
 
         {/* Daily budget progress */}
         {/* <div className="space-y-1.5 pt-1">
@@ -489,46 +499,94 @@ export function HomePage() {
           }
         />
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-xs divide-y divide-border/60">
-          {moneyItems.length === 0 ? (
+          {isLoading && moneyItems.length === 0 ? (
+            <div className="p-4 space-y-3">
+              {[1, 2, 3].map((n) => (
+                <div key={n} className="flex items-center gap-3 animate-pulse">
+                  <div className="size-8 rounded-md bg-muted" />
+                  <div className="space-y-1.5 flex-1">
+                    <div className="h-3.5 w-32 bg-muted rounded" />
+                    <div className="h-2.5 w-20 bg-muted rounded" />
+                  </div>
+                  <div className="h-4 w-16 bg-muted rounded" />
+                </div>
+              ))}
+            </div>
+          ) : moneyItems.length === 0 ? (
             <p className="px-4 py-6 text-center text-xs text-muted-foreground">
               Nothing logged yet — use quick access above.
             </p>
           ) : (
-            visibleActivity.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => navigate(`/transactions/${item.id}`)}
-                className="flex items-center gap-3 px-3.5 py-3 cursor-pointer hover:bg-muted/40 transition-colors"
-              >
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted/80">
-                  {getCategoryIcon(item.category, item.type)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs sm:text-sm font-semibold text-foreground">{item.title}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    {item.detail} · {item.time}
-                  </p>
-                </div>
-                {item.amount !== null && (
-                  <p
-                    className={`text-xs sm:text-sm font-bold tabular-nums ${item.type === "income" || item.type === "owed_to_me"
-                        ? "text-emerald-600 dark:text-emerald-400"
+            visibleActivity.map((item) => {
+              let text = item.detail ? String(item.detail).trim() : ""
+              if (text.includes("__POS_META__") || text.toLowerCase().includes("pos_meta") || text.toLowerCase().includes("pos meta")) {
+                try {
+                  const jsonPart = text.replace(/.*?(__POS_META__|pos_meta|POS_META)/i, "")
+                  const parsed = JSON.parse(jsonPart)
+                  text = parsed.text || parsed.note || parsed.title || ""
+                } catch {
+                  text = ""
+                }
+              } else if (text.startsWith("{") && text.endsWith("}")) {
+                try {
+                  const parsed = JSON.parse(text)
+                  text = parsed.text || parsed.note || ""
+                } catch {
+                  text = ""
+                }
+              }
+
+              const lower = text.toLowerCase()
+              if (
+                !text ||
+                lower === "meta" ||
+                lower === "pos meta" ||
+                lower === "pos_meta" ||
+                lower === "undefined" ||
+                lower === "null" ||
+                lower.startsWith("__pos_meta__")
+              ) {
+                text = ""
+              }
+
+              const cleanDetail = text || (item.type === "transfer" ? "Account Transfer" : (item.category ? item.category.charAt(0).toUpperCase() + item.category.slice(1) : "General"))
+
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => navigate(`/transactions/${item.id}`)}
+                  className="flex items-center gap-3 px-3.5 py-3 cursor-pointer hover:bg-muted/40 transition-colors"
+                >
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted/80">
+                    {getCategoryIcon(item.category, item.type)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs sm:text-sm font-semibold text-foreground">{item.title}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {cleanDetail} · {item.time}
+                    </p>
+                  </div>
+                  {item.amount !== null && (
+                    <p
+                      className={`text-xs sm:text-sm font-bold tabular-nums ${item.type === "income" || item.type === "owed_to_me"
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : item.type === "transfer"
+                            ? "text-primary"
+                            : "text-foreground"
+                        }`}
+                    >
+                      {item.type === "income" || item.type === "owed_to_me"
+                        ? "+"
                         : item.type === "transfer"
-                          ? "text-primary"
-                          : "text-foreground"
-                      }`}
-                  >
-                    {item.type === "income" || item.type === "owed_to_me"
-                      ? "+"
-                      : item.type === "transfer"
-                        ? ""
-                        : "-"}
-                    {currency}
-                    {item.amount.toLocaleString()}
-                  </p>
-                )}
-              </div>
-            ))
+                          ? ""
+                          : "-"}
+                      {currency}
+                      {item.amount.toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              )
+            })
           )}
         </div>
       </section>

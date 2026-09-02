@@ -37,7 +37,8 @@ function isFresh(fetchedAt: string, ttlHours = 24) {
 }
 
 export function getApiBaseUrl() {
-  return (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || ""
+  const raw = (import.meta.env.VITE_API_URL as string | undefined) || "https://personal-backend-blond.vercel.app"
+  return raw.trim().replace(/\/+$/, "").replace(/\/api$/, "")
 }
 
 /**

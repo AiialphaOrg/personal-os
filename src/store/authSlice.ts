@@ -8,6 +8,7 @@ import {
   registerWithEmail,
   loginWithEmail,
   fetchCurrentUser,
+  NetworkError,
   type UserSession,
 } from "@/lib/api-client"
 
@@ -75,7 +76,16 @@ export const checkAuthThunk = createAsyncThunk(
       const res = await fetchCurrentUser()
       return res.user
     } catch (err: any) {
-      return rejectWithValue(err.message || "Failed to verify session")
+      if (
+        err instanceof NetworkError ||
+        err.name === "NetworkError" ||
+        err.message?.includes("Network") ||
+        err.message?.includes("fetch") ||
+        typeof navigator !== "undefined" && !navigator.onLine
+      ) {
+        return rejectWithValue({ isNetworkError: true, message: err.message })
+      }
+      return rejectWithValue({ isUnauthorized: true, message: err.message || "Failed to verify session" })
     }
   }
 )
@@ -106,7 +116,6 @@ export const authSlice = createSlice({
     builder
       // Google Auth
       .addCase(googleAuthThunk.pending, (state) => {
-
         state.isLoading = true
         state.error = null
       })
@@ -160,7 +169,13 @@ export const authSlice = createSlice({
           state.isAuthenticated = true
         }
       })
-      .addCase(checkAuthThunk.rejected, (state) => {
+      .addCase(checkAuthThunk.rejected, (state, action) => {
+        const payload = action.payload as { isNetworkError?: boolean; isUnauthorized?: boolean } | undefined
+        // DO NOT log out on NetworkError or when offline — keep active session & local data!
+        if (payload?.isNetworkError || (typeof navigator !== "undefined" && !navigator.onLine)) {
+          state.isAuthenticated = true
+          return
+        }
         state.token = null
         state.user = null
         state.isAuthenticated = false

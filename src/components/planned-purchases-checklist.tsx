@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { usePosQuery, usePosMutations } from "@/hooks/use-pos-query"
-import { type PlannedPurchaseItem, WISHLIST_CATEGORIES } from "@/lib/storage"
+import { type PlannedPurchaseItem } from "@/lib/storage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -25,27 +25,39 @@ import {
   ShoppingCart,
   CreditCard,
   Banknote,
+  Check,
 } from "lucide-react"
+import { FormattedNumberInput } from "@/components/ui/formatted-number-input"
 
+const WISHLIST_CATEGORIES = [
+  { id: "general", label: "General" },
+  { id: "gadget", label: "Tech / Gadget" },
+  { id: "clothing", label: "Clothing" },
+  { id: "home", label: "Home / Living" },
+  { id: "groceries", label: "Bulk Stock" },
+  { id: "vehicle", label: "Vehicle / Auto" },
+  { id: "books", label: "Learning" },
+  { id: "gift", label: "Gifts" },
+]
 
 export function PlannedPurchasesChecklist() {
   const isMobile = useIsMobile()
-  const currency = localStorage.getItem("pos_currency") || "₦"
   const { plannedPurchases, wallets } = usePosQuery()
   const mutations = usePosMutations()
+  const currency = "₦"
 
   const [addOpen, setAddOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<PlannedPurchaseItem | null>(null)
+  const [checkoutItem, setCheckoutItem] = useState<PlannedPurchaseItem | null>(null)
   
-  // New / Edit Form State
+  // Form states
   const [title, setTitle] = useState("")
   const [amount, setAmount] = useState("")
   const [frequency, setFrequency] = useState<"once" | "weekly" | "monthly">("once")
-  const [category, setCategory] = useState("goods")
+  const [category, setCategory] = useState("general")
   const [error, setError] = useState("")
 
-  // Checkout Dialog State
-  const [checkoutItem, setCheckoutItem] = useState<PlannedPurchaseItem | null>(null)
+  // Checkout states
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit">("cash")
   const [actualAmount, setActualAmount] = useState("")
   const [walletId, setWalletId] = useState(wallets[0]?.id || "w-cash")
@@ -60,14 +72,12 @@ export function PlannedPurchasesChecklist() {
     .filter((p) => p.status !== "purchased")
     .reduce((sum, p) => sum + p.estimatedAmount, 0)
 
-
-
   const openAdd = () => {
     setEditingItem(null)
     setTitle("")
     setAmount("")
     setFrequency("once")
-    setCategory("goods")
+    setCategory("general")
     setError("")
     setAddOpen(true)
   }
@@ -77,7 +87,7 @@ export function PlannedPurchasesChecklist() {
     setTitle(item.title)
     setAmount(String(item.estimatedAmount))
     setFrequency(item.frequency)
-    setCategory(item.category || "goods")
+    setCategory(item.category || "general")
     setError("")
     setAddOpen(true)
   }
@@ -91,7 +101,7 @@ export function PlannedPurchasesChecklist() {
     }
     const amt = Number(amount)
     if (!amt || amt <= 0) {
-      setError("Please enter a valid estimated amount")
+      setError("Please enter estimated budget amount")
       return
     }
 
@@ -102,8 +112,9 @@ export function PlannedPurchasesChecklist() {
         estimatedAmount: amt,
         frequency,
         category,
+        status: editingItem?.status || "planned",
       })
-      toast.success("Wishlist item saved online")
+      toast.success("Saved to wishlist")
       setAddOpen(false)
     } catch (err: any) {
       setError(err.message || "Failed to save item")
@@ -148,7 +159,6 @@ export function PlannedPurchasesChecklist() {
         },
       })
 
-
       if (paymentMethod === "cash") {
         toast.success(`Bought ${checkoutItem.title} for ${currency}${amt.toLocaleString()} (Logged as Expense)`)
       } else {
@@ -180,7 +190,7 @@ export function PlannedPurchasesChecklist() {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="e.g. New Running Shoes, Headphones, Rice Bag"
-          className="h-9 rounded-lg"
+          className="h-11 rounded-lg text-sm"
           required
         />
       </div>
@@ -188,12 +198,11 @@ export function PlannedPurchasesChecklist() {
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-foreground">Est. Budget ({currency})</label>
-          <Input
-            type="number"
+          <FormattedNumberInput
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onValueChange={setAmount}
             placeholder="0"
-            className="h-9 rounded-lg tabular-nums"
+            className="h-11 rounded-lg text-sm font-semibold tabular-nums"
             required
           />
         </div>
@@ -203,7 +212,7 @@ export function PlannedPurchasesChecklist() {
           <select
             value={frequency}
             onChange={(e: any) => setFrequency(e.target.value)}
-            className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground focus:outline-none"
+            className="h-11 w-full rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground focus:outline-none"
           >
             <option value="once">One-time purchase</option>
             <option value="weekly">Weekly restock</option>
@@ -220,7 +229,7 @@ export function PlannedPurchasesChecklist() {
               key={c.id}
               type="button"
               onClick={() => setCategory(c.id)}
-              className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold capitalize transition-all ${
+              className={`rounded-lg border px-2.5 py-2 text-xs font-semibold capitalize transition-all ${
                 category === c.id
                   ? "border-primary bg-primary/10 text-primary font-bold shadow-2xs"
                   : "border-border text-muted-foreground hover:text-foreground"
@@ -235,7 +244,7 @@ export function PlannedPurchasesChecklist() {
       {error && <p className="text-xs font-medium text-destructive">{error}</p>}
 
       <div className="pt-2">
-        <Button type="submit" className="w-full h-10 rounded-lg text-xs font-semibold">
+        <Button type="submit" className="w-full h-12 rounded-xl text-sm font-semibold shadow-xs">
           {editingItem ? "Save Changes" : "Add to Wishlist"}
         </Button>
       </div>
@@ -244,90 +253,100 @@ export function PlannedPurchasesChecklist() {
 
   const checkoutBody = checkoutItem && (
     <form onSubmit={handleCheckoutSubmit} className="space-y-4">
-
-      <div className="rounded-lg bg-muted/50 p-3 space-y-1 border border-border/40">
+      <div className="rounded-lg bg-muted/50 p-3.5 space-y-1 border border-border/40">
         <p className="text-xs font-semibold text-foreground">{checkoutItem?.title}</p>
         <p className="text-[11px] text-muted-foreground">
           Est. Budget: {currency}{checkoutItem?.estimatedAmount.toLocaleString()} • Category: {checkoutItem?.category}
         </p>
       </div>
 
-      {/* Payment Method Selector */}
       <div className="space-y-1.5">
         <label className="text-xs font-semibold text-foreground">How are you paying for this?</label>
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => setPaymentMethod("cash")}
-            className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs font-semibold transition-all text-left ${
+            className={`flex items-center justify-center gap-2 rounded-xl border p-3 text-xs font-semibold transition-all ${
               paymentMethod === "cash"
-                ? "border-primary bg-primary/10 text-primary font-bold shadow-2xs"
+                ? "border-primary bg-primary/10 text-primary shadow-2xs font-bold"
                 : "border-border text-muted-foreground hover:text-foreground"
             }`}
           >
-            <Banknote className="size-4 shrink-0" />
-            <div>
-              <p>Paid Now</p>
-              <p className="text-[10px] font-normal text-muted-foreground">Logged as Expense</p>
-            </div>
+            <Banknote className="size-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Paid Cash / Bank</span>
           </button>
 
           <button
             type="button"
             onClick={() => setPaymentMethod("credit")}
-            className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs font-semibold transition-all text-left ${
+            className={`flex items-center justify-center gap-2 rounded-xl border p-3 text-xs font-semibold transition-all ${
               paymentMethod === "credit"
-                ? "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold shadow-2xs"
+                ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300 shadow-2xs font-bold"
                 : "border-border text-muted-foreground hover:text-foreground"
             }`}
           >
-            <CreditCard className="size-4 shrink-0" />
-            <div>
-              <p>Pay Later</p>
-              <p className="text-[10px] font-normal text-muted-foreground">Logged as Debt (I Owe)</p>
-            </div>
+            <CreditCard className="size-4 text-amber-600 dark:text-amber-400" />
+            <span>Buy on Credit (I Owe)</span>
           </button>
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-foreground">Actual Amount Paid/Owed ({currency})</label>
-        <Input
-          type="number"
-          value={actualAmount}
-          onChange={(e) => setActualAmount(e.target.value)}
-          placeholder="0"
-          className="h-9 rounded-lg tabular-nums"
-          required
-        />
-      </div>
-
-      {paymentMethod === "cash" ? (
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-foreground">Paid From Wallet</label>
-          <select
-            value={walletId}
-            onChange={(e) => setWalletId(e.target.value)}
-            className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground focus:outline-none"
-          >
-            {wallets.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name} ({currency}{w.balance.toLocaleString()})
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : (
-        <div className="space-y-3">
+      {paymentMethod === "cash" && (
+        <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-foreground">Person / Store Owed (Creditor)</label>
-            <Input
-              value={person}
-              onChange={(e) => setPerson(e.target.value)}
-              placeholder="e.g. John, Mall Store, Vendor"
-              className="h-9 rounded-lg"
+            <label className="text-xs font-semibold text-foreground">Actual Amount Paid ({currency})</label>
+            <FormattedNumberInput
+              value={actualAmount}
+              onValueChange={setActualAmount}
+              placeholder="0"
+              className="h-11 rounded-lg text-sm font-semibold tabular-nums"
               required
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-foreground">Deduct from Wallet</label>
+            <select
+              value={walletId}
+              onChange={(e) => setWalletId(e.target.value)}
+              className="h-11 w-full rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground focus:outline-none"
+            >
+              {wallets
+                .filter((w) => w.kind !== "investment")
+                .map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} ({currency}{w.balance.toLocaleString()})
+                  </option>
+                ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {paymentMethod === "credit" && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Amount Owed ({currency})</label>
+              <FormattedNumberInput
+                value={actualAmount}
+                onValueChange={setActualAmount}
+                placeholder="0"
+                className="h-11 rounded-lg text-sm font-semibold tabular-nums"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Creditor / Shop</label>
+              <Input
+                value={person}
+                onChange={(e) => setPerson(e.target.value)}
+                placeholder="e.g. Mama Ngozi, Store"
+                className="h-11 rounded-lg text-sm font-medium"
+                required
+              />
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -336,7 +355,7 @@ export function PlannedPurchasesChecklist() {
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              className="h-9 rounded-lg"
+              className="h-11 rounded-lg text-sm font-medium"
             />
           </div>
         </div>
@@ -345,8 +364,12 @@ export function PlannedPurchasesChecklist() {
       {checkoutError && <p className="text-xs font-medium text-destructive">{checkoutError}</p>}
 
       <div className="pt-2">
-        <Button type="submit" className="w-full h-10 rounded-lg text-xs font-semibold">
-          {paymentMethod === "cash" ? "Confirm Purchase & Log Expense" : "Confirm Purchase & Log Payable"}
+        <Button
+          type="submit"
+          className="w-full h-12 rounded-xl text-sm font-semibold shadow-xs"
+        >
+          <Check className="size-4 mr-1.5" />
+          <span>Confirm & Record Purchase</span>
         </Button>
       </div>
     </form>
@@ -482,20 +505,22 @@ export function PlannedPurchasesChecklist() {
       {/* Add / Edit Form Modal */}
       {isMobile ? (
         <Drawer open={addOpen} onOpenChange={setAddOpen}>
-          <DrawerContent className="p-4 space-y-4">
-            <DrawerHeader className="p-0">
-              <DrawerTitle className="text-sm font-bold">
+          <DrawerContent className="p-0">
+            <DrawerHeader>
+              <DrawerTitle>
                 {editingItem ? "Edit Planned Item" : "New Planned Item"}
               </DrawerTitle>
             </DrawerHeader>
-            {formBody}
+            <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 space-y-4">
+              {formBody}
+            </div>
           </DrawerContent>
         </Drawer>
       ) : (
         <Dialog open={addOpen} onOpenChange={setAddOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-sm font-bold">
+              <DialogTitle className="text-base font-bold">
                 {editingItem ? "Edit Planned Item" : "New Planned Item"}
               </DialogTitle>
             </DialogHeader>
@@ -507,18 +532,20 @@ export function PlannedPurchasesChecklist() {
       {/* Checkout Dialog */}
       {isMobile ? (
         <Drawer open={Boolean(checkoutItem)} onOpenChange={(open) => !open && setCheckoutItem(null)}>
-          <DrawerContent className="p-4 space-y-4">
-            <DrawerHeader className="p-0">
-              <DrawerTitle className="text-sm font-bold">Complete Purchase</DrawerTitle>
+          <DrawerContent className="p-0">
+            <DrawerHeader>
+              <DrawerTitle>Complete Purchase</DrawerTitle>
             </DrawerHeader>
-            {checkoutBody}
+            <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 space-y-4">
+              {checkoutBody}
+            </div>
           </DrawerContent>
         </Drawer>
       ) : (
         <Dialog open={Boolean(checkoutItem)} onOpenChange={(open) => !open && setCheckoutItem(null)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-sm font-bold">Complete Purchase</DialogTitle>
+              <DialogTitle className="text-base font-bold">Complete Purchase</DialogTitle>
             </DialogHeader>
             {checkoutBody}
           </DialogContent>

@@ -273,20 +273,64 @@ export const dataSlice = createSlice({
           shares: w.shares ? Number(w.shares) : undefined,
         }))
 
-        state.transactions = (payload.transactions || []).map((t: any) => ({
-          id: t.id,
-          type: t.type || "expense",
-          title: t.title || "Transaction",
-          detail: t.person || t.note || (t.walletId || "Cash"),
-          time: t.time || (t.date ? t.date : "Today"),
-          amount: Number(t.amount) || 0,
-          category: t.category || "general",
-          wallet: t.walletId || t.wallet,
-          fromWallet: t.fromWallet,
-          toWallet: t.toWallet,
-          debtId: t.debtId,
-          goalId: t.goalId,
-        }))
+        state.transactions = (payload.transactions || []).map((t: any) => {
+          let detail = t.person || t.note || ""
+          if (typeof detail === "string") {
+            if (detail.includes("__POS_META__") || detail.toLowerCase().includes("pos_meta") || detail.toLowerCase().includes("pos meta")) {
+              try {
+                const jsonPart = detail.replace(/.*?(__POS_META__|pos_meta|POS_META)/i, "")
+                const parsed = JSON.parse(jsonPart)
+                detail = parsed.text || parsed.note || parsed.title || ""
+              } catch {
+                detail = ""
+              }
+            } else if ((detail.startsWith("{") && detail.endsWith("}")) || (detail.startsWith("[") && detail.endsWith("]"))) {
+              try {
+                const parsed = JSON.parse(detail)
+                detail = parsed.text || parsed.note || parsed.title || ""
+              } catch {
+                detail = ""
+              }
+            }
+          }
+
+          const lower = String(detail).trim().toLowerCase()
+          if (
+            !detail ||
+            lower === "meta" ||
+            lower === "pos meta" ||
+            lower === "pos_meta" ||
+            lower === "undefined" ||
+            lower === "null" ||
+            lower.startsWith("__pos_meta__")
+          ) {
+            detail = ""
+          }
+
+          if (!detail) {
+            if (t.type === "transfer") {
+              detail = "Account Transfer"
+            } else {
+              const matchedWallet = (payload.wallets || []).find((w: any) => w.id === t.walletId)
+              detail = matchedWallet ? matchedWallet.name || matchedWallet.title : (t.category ? t.category.charAt(0).toUpperCase() + t.category.slice(1) : "Cash Account")
+            }
+          }
+
+          return {
+            id: t.id,
+            type: t.type || "expense",
+            title: t.title || (t.type === "transfer" ? "Account Transfer" : "Transaction"),
+            detail,
+            time: t.time || (t.date ? t.date : "Today"),
+            amount: Number(t.amount) || 0,
+            category: t.category || "general",
+            wallet: t.walletId || t.wallet,
+            fromWallet: t.fromWallet,
+            toWallet: t.toWallet,
+            debtId: t.debtId,
+            goalId: t.goalId,
+          }
+        })
 
         state.debts = (payload.debts || []).map((d: any) => ({
           id: d.id,

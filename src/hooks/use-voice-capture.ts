@@ -33,6 +33,7 @@ export function useVoiceCapture(handlers: VoiceHandlers, defaultMode: VoiceMode 
 
   const recognitionRef = useRef<any>(null)
   const sessionTranscriptRef = useRef("")
+  const latestFullTranscriptRef = useRef("")
   const handlersRef = useRef(handlers)
   handlersRef.current = handlers
 
@@ -89,18 +90,23 @@ export function useVoiceCapture(handlers: VoiceHandlers, defaultMode: VoiceMode 
     setListening(false)
     if (recognitionRef.current) {
       try {
-        recognitionRef.current.stop()
+        recognitionRef.current.abort()
       } catch {
-        // ignore
+        try {
+          recognitionRef.current.stop()
+        } catch {
+          // ignore
+        }
       }
+      recognitionRef.current = null
     }
 
     // Immediately process whatever was captured during the hold session!
-    const captured = sessionTranscriptRef.current.trim()
+    const captured = (latestFullTranscriptRef.current || sessionTranscriptRef.current).trim()
     if (captured) {
       void processCapturedTranscript(captured, mode)
     } else {
-      setHint("Voice stopped.")
+      setHint("Could not detect speech — try holding the mic and speaking again.")
     }
   }, [mode, processCapturedTranscript])
 
@@ -116,53 +122,42 @@ export function useVoiceCapture(handlers: VoiceHandlers, defaultMode: VoiceMode 
         return
       }
 
+      // Stop any existing instance
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort()
+        } catch {}
+        recognitionRef.current = null
+      }
+
       // Reset session transcript for fresh recording session
       sessionTranscriptRef.current = ""
+      latestFullTranscriptRef.current = ""
       setSessionTranscript("")
-
-      // Request browser audio permission if needed
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-          stream.getTracks().forEach((track) => track.stop())
-        } catch {
-          setHint("Microphone access denied. Please allow microphone permissions.")
-          return
-        }
-      }
 
       try {
         const recognition = new SpeechRecognition()
         recognition.lang = "en-US"
         recognition.interimResults = true
         recognition.maxAlternatives = 1
-        recognition.continuous = false // Explicitly disable continuous listening so laptop/desktop stops cleanly on release
+        recognition.continuous = true
 
         recognitionRef.current = recognition
         setListening(true)
-        setHint("Listening... speak your transaction")
+        setHint("Listening… Speak now, release when done")
 
         recognition.onresult = (event: any) => {
-          let interimTranscript = ""
-          let finalSegment = ""
-
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            const res = event.results[i]
-            if (res.isFinal) {
-              finalSegment += res[0].transcript
-            } else {
-              interimTranscript += res[0].transcript
-            }
+          let fullAccumulated = ""
+          for (let i = 0; i < event.results.length; ++i) {
+            fullAccumulated += event.results[i][0].transcript + " "
           }
 
-          if (finalSegment) {
-            sessionTranscriptRef.current = [sessionTranscriptRef.current, finalSegment.trim()].filter(Boolean).join(" ")
-            setSessionTranscript(sessionTranscriptRef.current)
-          }
-
-          const currentText = [sessionTranscriptRef.current, interimTranscript.trim()].filter(Boolean).join(" ")
-          if (currentText) {
-            setHint(`Hearing: "${currentText}"`)
+          const cleaned = fullAccumulated.trim()
+          if (cleaned) {
+            latestFullTranscriptRef.current = cleaned
+            sessionTranscriptRef.current = cleaned
+            setSessionTranscript(cleaned)
+            setHint(`Hearing: "${cleaned}"`)
           }
         }
 

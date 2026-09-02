@@ -10,6 +10,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useTheme } from "@/components/theme-provider"
 
@@ -18,6 +28,7 @@ import { useAppSelector, useAppDispatch } from "@/store/hooks"
 import { logout } from "@/store/authSlice"
 import { resetDataState } from "@/store/dataSlice"
 import { useQueryClient } from "@tanstack/react-query"
+import { usePosQuery } from "@/hooks/use-pos-query"
 
 import {
   AI_MODELS,
@@ -45,7 +56,6 @@ import {
   Bell,
   Sparkles,
   Sun,
-  Trash2,
   User,
   Shield,
   Coins,
@@ -59,6 +69,10 @@ import {
   WifiOff,
   Phone,
   Mail,
+  FileSpreadsheet,
+  EyeOff,
+  Calendar,
+  Wallet,
 } from "lucide-react"
 import {
   getSyncStatus,
@@ -67,6 +81,7 @@ import {
   importJsonBackup,
   type SyncStatus,
 } from "@/lib/sync/sync-manager"
+import { exportTransactionsToCsv } from "@/lib/export-csv"
 import { toast } from "sonner"
 import {
   getNotificationPermission,
@@ -97,10 +112,11 @@ type ActiveModal =
   | "ai"
   | "sync"
   | "security"
+  | "shortcuts"
   | null
 
 export function SettingsPage() {
-  useHeader({ title: "Profile" })
+  useHeader({ title: "Profile & Settings" })
   const navigate = useNavigate()
   const dispatch = useAppDispatch()
   const queryClient = useQueryClient()
@@ -109,15 +125,19 @@ export function SettingsPage() {
   const isMobile = useIsMobile()
 
   const authUser = useAppSelector((state) => state.auth.user)
+  const isOnline = useAppSelector((state) => state.data.isOnline)
+  const { transactions, wallets } = usePosQuery()
   const settings = useSettingsStore()
 
-
-  // Profile data
-  const [name, setName] = useState(() => authUser?.name || settings.userName || "Ahmad Ismail")
+  // Profile data (Strictly using auth user or clean fallback)
+  const [name, setName] = useState(() => authUser?.name || settings.userName || "User")
   const [email] = useState(() => authUser?.email || "user@personalos.app")
   const [phone, setPhone] = useState(() => localStorage.getItem("pos_user_phone") || "")
   const [currency, setCurrency] = useState(() => settings.currency || "₦")
   const [budget, setBudget] = useState(() => String(settings.budget || 100000))
+  const [defaultWallet, setDefaultWallet] = useState(() => settings.defaultWalletId || wallets[0]?.id || "w-cash")
+  const [privacyMode, setPrivacyModeState] = useState(() => settings.privacyMode || false)
+  const [weekStart, setWeekStartState] = useState(() => settings.weekStart || "monday")
 
   // Notifications
   const [notifOn, setNotifOn] = useState(() => notificationsEnabled())
@@ -138,6 +158,7 @@ export function SettingsPage() {
 
   // Active subview modal
   const [activeModal, setActiveModal] = useState<ActiveModal>(null)
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
   useEffect(() => onAiStatus(setRuntime), [])
 
@@ -158,7 +179,7 @@ export function SettingsPage() {
   }, [])
 
   const getInitials = (n: string) => {
-    if (!n) return "AI"
+    if (!n) return "PO"
     const parts = n.trim().split(" ")
     if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
     return n.slice(0, 2).toUpperCase()
@@ -169,9 +190,18 @@ export function SettingsPage() {
     const res = await triggerSync()
     setIsSyncing(false)
     if (res.ok) {
-      toast.success(res.syncedCount > 0 ? `Synced ${res.syncedCount} changes!` : "Already up to date.")
+      toast.success(res.syncedCount > 0 ? `Synced ${res.syncedCount} changes!` : "Single source of truth up to date.")
     } else {
       toast.error(res.error || "Sync failed")
+    }
+  }
+
+  const handleExportCsv = () => {
+    try {
+      exportTransactionsToCsv(transactions, currency)
+      toast.success("CSV statement downloaded")
+    } catch (err: any) {
+      toast.error(err.message || "Failed to export CSV")
     }
   }
 
@@ -244,7 +274,8 @@ export function SettingsPage() {
     setNotifMsg("Test notification sent")
   }
 
-  const handleLogout = () => {
+  const handleConfirmLogout = () => {
+    setShowLogoutConfirm(false)
     queryClient.clear()
     dispatch(logout())
     dispatch(resetDataState())
@@ -257,13 +288,14 @@ export function SettingsPage() {
     navigate("/login")
   }
 
-
   const resetData = () => {
     if (
-      window.confirm("Are you sure you want to clear all Personal OS data? This cannot be undone.")
+      window.confirm("Are you sure you want to clear offline cache and re-sync from cloud? Local modifications will refresh.")
     ) {
-      localStorage.clear()
-      window.location.href = "/onboarding"
+      localStorage.removeItem("pos_wallets")
+      localStorage.removeItem("pos_timeline")
+      localStorage.removeItem("pos_debts")
+      window.location.reload()
     }
   }
 
@@ -274,7 +306,7 @@ export function SettingsPage() {
         return (
           <div className="space-y-4 pt-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                 <User className="size-3.5 text-muted-foreground" />
                 Full Name
               </label>
@@ -282,25 +314,25 @@ export function SettingsPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Enter your name"
-                className="h-10 text-sm"
+                className="h-11 rounded-lg text-sm"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                 <Mail className="size-3.5 text-muted-foreground" />
                 Email Address
               </label>
               <Input
                 value={email}
                 disabled
-                className="h-10 text-sm bg-muted/50 cursor-not-allowed"
+                className="h-11 rounded-lg text-sm bg-muted/40 cursor-not-allowed opacity-80"
               />
               <p className="text-[11px] text-muted-foreground">Primary authenticated account email</p>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                 <Phone className="size-3.5 text-muted-foreground" />
                 Phone Number
               </label>
@@ -308,11 +340,11 @@ export function SettingsPage() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+234 800 000 0000"
-                className="h-10 text-sm"
+                className="h-11 rounded-lg text-sm"
               />
             </div>
 
-            <Button className="w-full h-10 font-semibold mt-2" onClick={savePersonalInfo}>
+            <Button className="w-full h-12 rounded-xl font-semibold mt-2 shadow-xs" onClick={savePersonalInfo}>
               Save Personal Info
             </Button>
           </div>
@@ -322,16 +354,16 @@ export function SettingsPage() {
         return (
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
-              <label className="text-xs font-medium text-foreground">Select Primary Currency</label>
+              <label className="text-xs font-semibold text-foreground">Primary Currency</label>
               <div className="grid grid-cols-1 gap-2">
                 {CURRENCIES.map((c) => (
                   <button
                     key={c.code}
                     type="button"
                     onClick={() => savePreferences(c.code)}
-                    className={`flex items-center justify-between rounded-lg border p-3 text-xs font-semibold transition-all ${
+                    className={`flex items-center justify-between rounded-xl border p-3.5 text-xs font-semibold transition-all ${
                       currency === c.code
-                        ? "border-primary bg-primary/10 text-primary shadow-2xs"
+                        ? "border-primary bg-primary/10 text-primary shadow-2xs font-bold"
                         : "border-border bg-card text-foreground hover:bg-muted/40"
                     }`}
                   >
@@ -342,8 +374,75 @@ export function SettingsPage() {
               </div>
             </div>
 
-            <div className="space-y-1.5 pt-2 border-t border-border/60">
-              <label className="text-xs font-medium text-foreground">Monthly Budget Target</label>
+            {/* Default Wallet Picker */}
+            <div className="space-y-1.5 pt-2 border-t border-border/50">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Wallet className="size-3.5 text-muted-foreground" />
+                Default Payment Account
+              </label>
+              <select
+                value={defaultWallet}
+                onChange={(e) => {
+                  setDefaultWallet(e.target.value)
+                  settings.setDefaultWalletId(e.target.value)
+                  localStorage.setItem("pos_default_wallet", e.target.value)
+                  toast.success("Default wallet updated")
+                }}
+                className="h-11 w-full rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground focus:outline-none"
+              >
+                {wallets.filter((w) => w.kind !== "investment").map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} ({currency}{w.balance.toLocaleString()})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Privacy Mode Toggle */}
+            <div className="flex items-center justify-between gap-3 pt-2 border-t border-border/50">
+              <div>
+                <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <EyeOff className="size-3.5 text-muted-foreground" />
+                  Privacy Mode (Hide Balances)
+                </p>
+                <p className="text-[11px] text-muted-foreground">Masks account numbers when in public</p>
+              </div>
+              <Switch
+                checked={privacyMode}
+                onCheckedChange={(v) => {
+                  setPrivacyModeState(v)
+                  settings.setPrivacyMode(v)
+                  localStorage.setItem("pos_privacy_mode", String(v))
+                  toast.success(v ? "Privacy mode enabled" : "Privacy mode disabled")
+                }}
+              />
+            </div>
+
+            {/* Start of Week */}
+            <div className="flex items-center justify-between gap-3 pt-2 border-t border-border/50">
+              <div>
+                <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Calendar className="size-3.5 text-muted-foreground" />
+                  Start of Week
+                </p>
+                <p className="text-[11px] text-muted-foreground">For calendar & planner summaries</p>
+              </div>
+              <select
+                value={weekStart}
+                onChange={(e: any) => {
+                  setWeekStartState(e.target.value)
+                  settings.setWeekStart(e.target.value)
+                }}
+                className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-semibold text-foreground"
+              >
+                <option value="monday">Monday</option>
+                <option value="sunday">Sunday</option>
+              </select>
+            </div>
+
+            {/* Monthly Budget Target */}
+            <div className="space-y-1.5 pt-2 border-t border-border/50">
+              <label className="text-xs font-semibold text-foreground">Monthly Budget Target ({currency})</label>
               <Input
                 inputMode="numeric"
                 value={budget}
@@ -351,7 +450,7 @@ export function SettingsPage() {
                   setBudget(e.target.value.replace(/[^\d]/g, ""))
                   settings.updateProfile(name, currency, Number(e.target.value) || 100000)
                 }}
-                className="h-10 text-sm"
+                className="h-11 rounded-lg text-sm tabular-nums font-semibold"
               />
             </div>
           </div>
@@ -361,13 +460,13 @@ export function SettingsPage() {
         return (
           <div className="space-y-3 pt-2">
             <p className="text-xs text-muted-foreground">Select your interface appearance preference.</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2.5">
               <button
                 type="button"
                 onClick={() => setTheme("light")}
-                className={`flex flex-col items-center justify-center gap-2 rounded-lg border p-4 text-xs font-semibold transition-all ${
+                className={`flex flex-col items-center justify-center gap-2 rounded-xl border p-4 text-xs font-semibold transition-all ${
                   theme === "light"
-                    ? "border-primary bg-primary/10 text-primary shadow-2xs"
+                    ? "border-primary bg-primary/10 text-primary shadow-2xs font-bold"
                     : "border-border bg-card text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -378,9 +477,9 @@ export function SettingsPage() {
               <button
                 type="button"
                 onClick={() => setTheme("dark")}
-                className={`flex flex-col items-center justify-center gap-2 rounded-lg border p-4 text-xs font-semibold transition-all ${
+                className={`flex flex-col items-center justify-center gap-2 rounded-xl border p-4 text-xs font-semibold transition-all ${
                   theme === "dark"
-                    ? "border-primary bg-primary/10 text-primary shadow-2xs"
+                    ? "border-primary bg-primary/10 text-primary shadow-2xs font-bold"
                     : "border-border bg-card text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -391,9 +490,9 @@ export function SettingsPage() {
               <button
                 type="button"
                 onClick={() => setTheme("system")}
-                className={`flex flex-col items-center justify-center gap-2 rounded-lg border p-4 text-xs font-semibold transition-all ${
+                className={`flex flex-col items-center justify-center gap-2 rounded-xl border p-4 text-xs font-semibold transition-all ${
                   theme === "system"
-                    ? "border-primary bg-primary/10 text-primary shadow-2xs"
+                    ? "border-primary bg-primary/10 text-primary shadow-2xs font-bold"
                     : "border-border bg-card text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -411,7 +510,7 @@ export function SettingsPage() {
               <div>
                 <p className="text-xs font-semibold text-foreground">System Notifications</p>
                 <p className="text-[11px] text-muted-foreground">
-                  Status: <span className="font-semibold text-foreground">{notifPerm}</span>
+                  Browser permission: <span className="font-semibold text-foreground capitalize">{notifPerm}</span>
                 </p>
               </div>
               <Switch checked={notifOn} onCheckedChange={(v) => void handleNotifications(v)} />
@@ -433,7 +532,7 @@ export function SettingsPage() {
 
             {dailyReviewOn && (
               <div className="flex items-center justify-between gap-3 pt-2">
-                <label className="text-xs font-medium text-foreground">Reminder Time</label>
+                <label className="text-xs font-semibold text-foreground">Reminder Time</label>
                 <Input
                   type="time"
                   value={dailyReviewTime}
@@ -441,7 +540,7 @@ export function SettingsPage() {
                     setDailyReviewTimeState(e.target.value)
                     setDailyReviewTime(e.target.value)
                   }}
-                  className="w-32 h-8 text-xs font-semibold"
+                  className="w-32 h-9 rounded-lg text-xs font-semibold"
                 />
               </div>
             )}
@@ -450,7 +549,7 @@ export function SettingsPage() {
 
             <Button
               variant="outline"
-              className="w-full h-9 text-xs font-semibold"
+              className="w-full h-10 rounded-xl text-xs font-semibold mt-2"
               disabled={!notifOn}
               onClick={() => void handleTestNotif()}
             >
@@ -466,9 +565,9 @@ export function SettingsPage() {
               <button
                 type="button"
                 onClick={() => chooseEngine("transformers")}
-                className={`flex-1 rounded-lg border p-3 text-left transition-all ${
+                className={`flex-1 rounded-xl border p-3 text-left transition-all ${
                   engine === "transformers"
-                    ? "border-primary bg-primary/10 text-primary shadow-2xs"
+                    ? "border-primary bg-primary/10 text-primary shadow-2xs font-bold"
                     : "border-border bg-background text-muted-foreground"
                 }`}
               >
@@ -479,9 +578,9 @@ export function SettingsPage() {
               <button
                 type="button"
                 onClick={() => chooseEngine("rules")}
-                className={`flex-1 rounded-lg border p-3 text-left transition-all ${
+                className={`flex-1 rounded-xl border p-3 text-left transition-all ${
                   engine === "rules"
-                    ? "border-primary bg-primary/10 text-primary shadow-2xs"
+                    ? "border-primary bg-primary/10 text-primary shadow-2xs font-bold"
                     : "border-border bg-background text-muted-foreground"
                 }`}
               >
@@ -491,7 +590,7 @@ export function SettingsPage() {
             </div>
 
             <div className="space-y-2 pt-1">
-              <label className="text-xs font-medium text-foreground">Available Local Models</label>
+              <label className="text-xs font-semibold text-foreground">Available Local Models</label>
               {AI_MODELS.map((m) => {
                 const active = modelId === m.id
                 return (
@@ -500,9 +599,9 @@ export function SettingsPage() {
                     type="button"
                     disabled={engine === "rules"}
                     onClick={() => chooseModel(m.id)}
-                    className={`w-full rounded-lg border p-3 text-left transition-all disabled:opacity-50 ${
+                    className={`w-full rounded-xl border p-3 text-left transition-all disabled:opacity-50 ${
                       active && engine === "transformers"
-                        ? "border-primary bg-primary/5 shadow-2xs"
+                        ? "border-primary bg-primary/5 shadow-2xs font-bold"
                         : "border-border bg-background"
                     }`}
                   >
@@ -525,7 +624,7 @@ export function SettingsPage() {
               })}
             </div>
 
-            <div className="rounded-lg bg-muted/40 p-3 text-xs space-y-1">
+            <div className="rounded-xl bg-muted/40 p-3.5 text-xs space-y-1">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Cpu className="size-3.5" />
                 <span>
@@ -547,7 +646,7 @@ export function SettingsPage() {
             </div>
 
             <Button
-              className="w-full h-10 font-semibold gap-2"
+              className="w-full h-11 rounded-xl font-semibold gap-2"
               variant={runtime.ready && runtime.modelId === modelId ? "outline" : "default"}
               disabled={engine === "rules" || runtime.loading}
               onClick={() => void downloadModel()}
@@ -565,50 +664,63 @@ export function SettingsPage() {
       case "sync":
         return (
           <div className="space-y-4 pt-2">
-            <div className="rounded-lg border border-border bg-card p-3.5 space-y-2">
+            <div className="rounded-xl border border-border bg-card p-4 space-y-2 shadow-2xs">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {syncStatus.online ? (
+                  {isOnline && syncStatus.online ? (
                     <Wifi className="size-4 text-emerald-500" />
                   ) : (
                     <WifiOff className="size-4 text-amber-500" />
                   )}
                   <span className="text-xs font-bold text-foreground">
-                    {syncStatus.online ? "Connected Online" : "Offline Mode"}
+                    {isOnline && syncStatus.online ? "Connected to Cloud Database" : "Offline Mode"}
                   </span>
                 </div>
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-8 font-semibold gap-1.5 text-xs"
+                  className="h-9 rounded-lg font-semibold gap-1.5 text-xs"
                   onClick={() => void handleManualSync()}
-                  disabled={isSyncing || !syncStatus.online}
+                  disabled={isSyncing || !isOnline}
                 >
                   <RefreshCw className={`size-3.5 ${isSyncing ? "animate-spin text-primary" : ""}`} />
                   {isSyncing ? "Syncing..." : "Sync Now"}
                 </Button>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                {syncStatus.pendingCount > 0
-                  ? `${syncStatus.pendingCount} local changes queued for cloud sync`
-                  : "Single source of truth synchronized with backend database."}
+                Single source of truth synchronized with your PostgreSQL database.
               </p>
             </div>
 
-            <div className="space-y-2 pt-2 border-t border-border/60">
-              <p className="text-xs font-semibold text-foreground">JSON Backup & Restore</p>
+            {/* CSV Statement Export */}
+            <div className="space-y-2 pt-2 border-t border-border/50">
+              <p className="text-xs font-semibold text-foreground">Financial Statement Export</p>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 rounded-xl font-semibold text-xs gap-2 border-border bg-card"
+                onClick={handleExportCsv}
+              >
+                <FileSpreadsheet className="size-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Download Statement as CSV / Excel</span>
+              </Button>
+            </div>
+
+            {/* JSON Backup & Restore */}
+            <div className="space-y-2 pt-2 border-t border-border/50">
+              <p className="text-xs font-semibold text-foreground">Full JSON Backup</p>
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-10 font-semibold text-xs gap-1.5"
+                  className="h-11 rounded-xl font-semibold text-xs gap-1.5"
                   onClick={exportJsonBackup}
                 >
                   <DownloadCloud className="size-4 text-primary" />
                   Export JSON
                 </Button>
 
-                <label className="flex h-10 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground hover:bg-muted/40 cursor-pointer transition-colors shadow-2xs">
+                <label className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground hover:bg-muted/40 cursor-pointer transition-colors shadow-2xs">
                   <UploadCloud className="size-4 text-emerald-500" />
                   <span>Restore JSON</span>
                   <input
@@ -621,14 +733,13 @@ export function SettingsPage() {
               </div>
             </div>
 
-            <div className="pt-2 border-t border-border/60">
+            <div className="pt-2 border-t border-border/50">
               <Button
-                variant="destructive"
-                className="w-full h-10 font-semibold gap-2 text-xs"
+                variant="ghost"
+                className="w-full h-10 rounded-xl text-muted-foreground hover:text-foreground text-xs"
                 onClick={resetData}
               >
-                <Trash2 className="size-4" />
-                Clear Local Storage Data
+                Clear Offline Cache & Refresh
               </Button>
             </div>
           </div>
@@ -637,25 +748,53 @@ export function SettingsPage() {
       case "security":
         return (
           <div className="space-y-4 pt-2">
-            <div className="rounded-lg border border-border bg-muted/30 p-3.5 space-y-1.5">
+            <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2">
               <p className="text-xs font-semibold text-foreground">Account Status</p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Logged in as <span className="font-semibold text-foreground">{email}</span>
               </p>
               <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium pt-1">
                 <Check className="size-3.5" />
-                Session authenticated & token encrypted
+                Session authenticated via JWT & Neon OAuth
               </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-4 space-y-1.5">
+              <p className="text-xs font-semibold text-foreground">Security & Data Privacy</p>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Your data is stored in your private PostgreSQL instance. Tokens are stored in protected local device storage.
+              </p>
             </div>
 
             <Button
               variant="destructive"
-              className="w-full h-10 font-semibold gap-2"
-              onClick={handleLogout}
+              className="w-full h-11 rounded-xl font-semibold gap-2 mt-2 shadow-xs"
+              onClick={() => setShowLogoutConfirm(true)}
             >
               <LogOut className="size-4" />
               Sign Out of Account
             </Button>
+          </div>
+        )
+
+      case "shortcuts":
+        return (
+          <div className="space-y-3 pt-2 text-xs">
+            <p className="text-muted-foreground">Quick keyboard shortcuts for desktop efficiency:</p>
+            <div className="divide-y divide-border/50 rounded-xl border border-border bg-card">
+              {[
+                { key: "⌘K / Ctrl+K", action: "Open Global Search & Command Menu" },
+                { key: "Esc", action: "Close modal / drawer / search" },
+                { key: "Tap Mic", action: "1st tap to start recording, 2nd tap to process" },
+              ].map((s, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3">
+                  <span className="text-muted-foreground">{s.action}</span>
+                  <kbd className="px-2 py-1 rounded bg-muted font-mono text-[11px] font-bold text-foreground border border-border">
+                    {s.key}
+                  </kbd>
+                </div>
+              ))}
+            </div>
           </div>
         )
 
@@ -677,9 +816,11 @@ export function SettingsPage() {
       case "ai":
         return "AI & Voice Engine"
       case "sync":
-        return "Cloud Sync & Data Backup"
+        return "Cloud Sync & Financial Export"
       case "security":
         return "Login & Security"
+      case "shortcuts":
+        return "Keyboard Shortcuts"
       default:
         return ""
     }
@@ -689,14 +830,14 @@ export function SettingsPage() {
     {
       id: "personal_info" as const,
       label: "Personal info",
-      subtitle: "Name, photo, phone",
+      subtitle: "Name, email, phone",
       icon: User,
       iconClass: "bg-primary/10 text-primary",
     },
     {
       id: "currency" as const,
-      label: "Currency & Budget",
-      subtitle: `Primary currency (${currency}), budget target`,
+      label: "Currency & Preferences",
+      subtitle: `Primary currency (${currency}), default wallet, privacy mode`,
       icon: Coins,
       iconClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     },
@@ -708,16 +849,16 @@ export function SettingsPage() {
       iconClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     },
     {
-      id: "security" as const,
-      label: "Login & security",
-      subtitle: "Password and account safety",
-      icon: Shield,
-      iconClass: "bg-primary/10 text-primary",
+      id: "sync" as const,
+      label: "Cloud Sync & CSV Export",
+      subtitle: "Postgres sync, statement CSV, JSON backup",
+      icon: Cloud,
+      iconClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     },
     {
       id: "notifications" as const,
       label: "Notifications",
-      subtitle: "Email and review reminders",
+      subtitle: "Daily review reminders & alerts",
       icon: Bell,
       iconClass: "bg-primary/10 text-primary",
     },
@@ -729,12 +870,19 @@ export function SettingsPage() {
       iconClass: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
     },
     {
-      id: "sync" as const,
-      label: "Cloud Sync & Backup",
-      subtitle: "Database sync, JSON export/restore",
-      icon: Cloud,
-      iconClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+      id: "security" as const,
+      label: "Account & Security",
+      subtitle: "Session details, password safety",
+      icon: Shield,
+      iconClass: "bg-primary/10 text-primary",
     },
+    // {
+    //   id: "shortcuts" as const,
+    //   label: "Keyboard Shortcuts",
+    //   subtitle: "Quick access navigation keys",
+    //   icon: Command,
+    //   iconClass: "bg-muted text-muted-foreground",
+    // },
   ]
 
   return (
@@ -743,9 +891,9 @@ export function SettingsPage() {
       style={{ paddingBottom: keyboardInset > 0 ? keyboardInset : undefined }}
     >
       {/* Top Profile Hero Card */}
-      <section className="rounded-lg border border-border bg-card p-6 sm:p-7 flex flex-col items-center justify-center text-center space-y-3.5 shadow-xs">
+      <section className="rounded-xl border border-border bg-card p-6 sm:p-7 flex flex-col items-center justify-center text-center space-y-3 shadow-2xs">
         {/* Brand Blue Avatar */}
-        <div className="flex size-20 sm:size-24 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 text-white font-extrabold text-2xl sm:text-3xl tracking-tight shadow-md select-none">
+        <div className="flex size-20 sm:size-22 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 text-white font-extrabold text-2xl sm:text-3xl tracking-tight shadow-md select-none">
           {getInitials(name)}
         </div>
 
@@ -756,9 +904,8 @@ export function SettingsPage() {
         </div>
       </section>
 
-
-      {/* Menu Settings Group (Inspired by reference screenshot) */}
-      <section className="overflow-hidden rounded-lg border border-border bg-card shadow-xs divide-y divide-border/60">
+      {/* Menu Settings Group */}
+      <section className="overflow-hidden rounded-xl border border-border bg-card shadow-xs divide-y divide-border/60">
         {MENU_ITEMS.map((item) => {
           const Icon = item.icon
           return (
@@ -770,7 +917,7 @@ export function SettingsPage() {
             >
               <div className="flex items-center gap-3.5 min-w-0">
                 <div
-                  className={`flex size-9 shrink-0 items-center justify-center rounded-md transition-transform group-hover:scale-105 ${item.iconClass}`}
+                  className={`flex size-9 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${item.iconClass}`}
                 >
                   <Icon className="size-4 stroke-[2.2px]" />
                 </div>
@@ -788,12 +935,12 @@ export function SettingsPage() {
         })}
       </section>
 
-      {/* Log Out Button (Inspired by reference screenshot) */}
+      {/* Log Out Button */}
       <section>
         <button
           type="button"
-          onClick={handleLogout}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-card py-3.5 px-4 text-xs sm:text-sm font-semibold text-foreground hover:bg-muted/40 hover:text-red-600 dark:hover:text-red-400 active:scale-[0.99] transition-all shadow-xs"
+          onClick={() => setShowLogoutConfirm(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card py-3.5 px-4 text-xs sm:text-sm font-semibold text-foreground hover:bg-muted/40 hover:text-destructive active:scale-[0.99] transition-all shadow-xs cursor-pointer"
         >
           <LogOut className="size-4" />
           <span>Log out</span>
@@ -803,16 +950,18 @@ export function SettingsPage() {
       {/* Subview Modal / Drawer */}
       {isMobile ? (
         <Drawer open={Boolean(activeModal)} onOpenChange={(open) => !open && setActiveModal(null)}>
-          <DrawerContent className="px-4 pb-6">
-            <DrawerHeader className="px-0 text-left">
+          <DrawerContent className="p-0">
+            <DrawerHeader>
               <DrawerTitle>{getModalTitle()}</DrawerTitle>
             </DrawerHeader>
-            {renderModalContent()}
+            <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 space-y-4">
+              {renderModalContent()}
+            </div>
           </DrawerContent>
         </Drawer>
       ) : (
         <Dialog open={Boolean(activeModal)} onOpenChange={(open) => !open && setActiveModal(null)}>
-          <DialogContent className="rounded-lg max-w-md">
+          <DialogContent className="rounded-xl max-w-md">
             <DialogHeader>
               <DialogTitle>{getModalTitle()}</DialogTitle>
             </DialogHeader>
@@ -820,7 +969,31 @@ export function SettingsPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Logout Confirmation Alert Modal (shadcn AlertDialog) */}
+      <AlertDialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+        <AlertDialogContent size="sm" className="rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-bold">Sign Out Confirmation</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
+              Are you sure you want to sign out of your Personal OS account?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="h-9 rounded-lg text-xs font-semibold">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              className="h-9 rounded-lg text-xs font-semibold gap-1.5"
+              onClick={handleConfirmLogout}
+            >
+              <LogOut className="size-3.5" />
+              <span>Log Out</span>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
-
