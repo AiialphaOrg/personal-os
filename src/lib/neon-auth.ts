@@ -1,9 +1,9 @@
 /**
  * Neon Auth & Google OAuth Integration for Personal OS
- * Connects frontend with Neon's Auth (Better Auth) & Postgres database.
+ * Connects frontend with Neon's Auth & backend database.
  */
 
-import { setStoredSession, type UserSession } from "@/lib/api-client"
+import { loginWithGoogle, type UserSession } from "@/lib/api-client"
 
 export const NEON_AUTH_URL = (import.meta.env.VITE_NEON_AUTH_URL || "").replace(/\/+$/, "")
 
@@ -30,7 +30,7 @@ export async function startNeonGoogleAuth(): Promise<{ handled: boolean; token?:
       }),
     })
 
-    const data = await res.json()
+    const data = await res.json().catch(() => ({}))
     if (data?.url) {
       window.location.href = data.url
       return { handled: true }
@@ -52,48 +52,76 @@ export async function startNeonGoogleAuth(): Promise<{ handled: boolean; token?:
 }
 
 /**
- * Check for active Neon Auth session or URL callback parameters
+ * Check for active Neon Auth OAuth return in URL query parameters.
+ * Automatically handles ?neon_auth_session_verifier=... from Google OAuth
+ * and syncs the verified user directly with the backend database.
  */
 export async function handleNeonAuthCallback(): Promise<{ token: string; user: UserSession } | null> {
   try {
-    // 1. Check URL parameters
-    const params = new URLSearchParams(window.location.search)
-    const urlToken = params.get("token") || params.get("session_token") || params.get("access_token")
-    const urlEmail = params.get("email") || params.get("user_email")
+    const search = window.location.search
+    if (!search) return null
 
-    if (urlToken && urlEmail) {
-      const user: UserSession = {
-        id: params.get("user_id") || params.get("id") || `neon_${Date.now()}`,
-        email: urlEmail,
-        name: params.get("name") || params.get("user_name") || urlEmail.split("@")[0] || "User",
-        avatarUrl: params.get("avatar") || params.get("picture") || undefined,
-      }
-      setStoredSession(urlToken, user)
-      return { token: urlToken, user }
+    const params = new URLSearchParams(search)
+    const hasVerifier =
+      params.has("neon_auth_session_verifier") ||
+      params.has("state") ||
+      params.has("code") ||
+      params.has("session_token") ||
+      params.has("token") ||
+      params.has("email")
+
+    if (!hasVerifier) {
+      return null
     }
 
-    // 2. Query Better Auth /get-session
+    // 1. Direct query param email fallback
+    const urlEmail = params.get("email") || params.get("user_email")
+    const urlName = params.get("name") || params.get("user_name")
+    const urlAvatar = params.get("avatar") || params.get("picture")
+
+    if (urlEmail) {
+      const syncRes = await loginWithGoogle(urlEmail, urlName || undefined, urlAvatar || undefined)
+      window.history.replaceState({}, document.title, window.location.pathname)
+      return syncRes
+    }
+
+    // 2. Fetch session from Neon Auth with credentials / verifier
     if (NEON_AUTH_URL) {
-      const res = await fetch(`${NEON_AUTH_URL}/get-session`, {
+      // Try get-session with query params first, then fallback to standard get-session
+      let res = await fetch(`${NEON_AUTH_URL}/get-session?${params.toString()}`, {
         credentials: "include",
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (data?.user) {
-          const token = data.session?.token || data.session?.id || `neon_token_${data.user.id}`
-          const user: UserSession = {
-            id: data.user.id || `neon_${Date.now()}`,
-            email: data.user.email,
-            name: data.user.name || data.user.email?.split("@")[0] || "User",
-            avatarUrl: data.user.image || data.user.avatarUrl || undefined,
-          }
-          setStoredSession(token, user)
-          return { token, user }
+      }).catch(() => null)
+
+      if (!res || !res.ok) {
+        res = await fetch(`${NEON_AUTH_URL}/get-session`, {
+          credentials: "include",
+        }).catch(() => null)
+      }
+
+      if (res && res.ok) {
+        const data = await res.json().catch(() => null)
+        const user = data?.user
+        if (user && user.email) {
+          // Sync with backend API & Postgres database
+          const syncRes = await loginWithGoogle(
+            user.email,
+            user.name || undefined,
+            user.image || user.avatarUrl || undefined
+          )
+          window.history.replaceState({}, document.title, window.location.pathname)
+          return syncRes
         }
       }
     }
+
+    // Clean URL params if verification could not find session
+    window.history.replaceState({}, document.title, window.location.pathname)
   } catch (err) {
-    console.warn("Neon session check:", err)
+    console.error("Failed to complete Neon OAuth callback:", err)
+    try {
+      window.history.replaceState({}, document.title, window.location.pathname)
+    } catch {}
   }
+
   return null
 }

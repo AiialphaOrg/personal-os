@@ -102,10 +102,14 @@ export async function verifyAuthCode(email: string, code: string) {
   return res
 }
 
-export async function loginWithGoogle(email?: string, name?: string) {
+export async function loginWithGoogle(email?: string, name?: string, avatarUrl?: string) {
   const res = await apiFetch<{ ok: boolean; token: string; user: UserSession }>("/auth/google", {
     method: "POST",
-    body: JSON.stringify({ email: email || "user@gmail.com", name: name || "Google User" }),
+    body: JSON.stringify({
+      email: email || "user@gmail.com",
+      name: name || "Google User",
+      avatarUrl: avatarUrl || undefined,
+    }),
   })
   if (res.token && res.user) {
     setStoredSession(res.token, res.user)
