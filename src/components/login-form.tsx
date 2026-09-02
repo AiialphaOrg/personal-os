@@ -57,10 +57,17 @@ export function LoginForm({
 
   // Listen for Neon Auth redirect callback on page load
   useEffect(() => {
-    const callbackSession = handleNeonAuthCallback()
-    if (callbackSession) {
-      dispatch(setAuthSession(callbackSession))
-      finishAuth(callbackSession.user.name)
+    let isMounted = true
+    async function checkAuth() {
+      const callbackSession = await handleNeonAuthCallback()
+      if (callbackSession && isMounted) {
+        dispatch(setAuthSession(callbackSession))
+        finishAuth(callbackSession.user.name)
+      }
+    }
+    checkAuth()
+    return () => {
+      isMounted = false
     }
   }, [dispatch])
 
