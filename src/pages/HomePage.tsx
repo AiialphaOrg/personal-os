@@ -285,19 +285,19 @@ export function HomePage() {
           <div className="grid grid-cols-2 gap-3 pt-1">
             <div className="rounded-md bg-muted/40 p-3 space-y-1">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-                <span>Spent Today</span>
+                <span>Income / Inflow</span>
               </div>
-              <p className="text-xl sm:text-2xl font-bold tracking-tight text-foreground tabular-nums">
-                {currency}{spentToday.toLocaleString()}
+              <p className="text-xl sm:text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 tabular-nums">
+                +{currency}{incomeToday.toLocaleString()}
               </p>
             </div>
 
             <div className="rounded-md bg-muted/40 p-3 space-y-1">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-                <span>Income / Inflow</span>
+                <span>Spent Today</span>
               </div>
-              <p className="text-xl sm:text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 tabular-nums">
-                +{currency}{incomeToday.toLocaleString()}
+              <p className="text-xl sm:text-2xl font-bold tracking-tight text-foreground tabular-nums">
+                {currency}{spentToday.toLocaleString()}
               </p>
             </div>
           </div>

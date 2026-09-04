@@ -30,6 +30,7 @@ import { usePosQuery } from "@/hooks/use-pos-query"
 export function Layout() {
   const location = useLocation()
   const isOnboarding = location.pathname === "/onboarding"
+  const isCapturePage = location.pathname.startsWith("/capture")
   const currency = localStorage.getItem("pos_currency") || "₦"
 
 
@@ -154,13 +155,13 @@ export function Layout() {
         <SidebarInset className="relative flex flex-1 flex-col overflow-hidden bg-background">
           <Header onOpenSearch={() => setIsSearchOpen(true)} />
 
-          <main className="flex-1 overflow-y-auto px-3 py-3 pb-20 md:px-8 md:py-6 md:pb-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <main className={`flex-1 overflow-y-auto px-3 py-3 md:px-8 md:py-6 md:pb-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${isCapturePage ? "pb-4" : "pb-20"}`}>
             <div className="mx-auto max-w-5xl">
               <Outlet />
             </div>
           </main>
 
-          <BottomNav />
+          {!isCapturePage && <BottomNav />}
         </SidebarInset>
 
         <SidebarRight />

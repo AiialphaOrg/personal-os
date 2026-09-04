@@ -14,6 +14,10 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import {
   EXPENSE_CATEGORIES,
   INCOME_CATEGORIES,
+  QUICK_EXPENSE_TAGS,
+  QUICK_INCOME_TAGS,
+  QUICK_DEBT_TAGS,
+  formatCategoryLabel,
   setDefaultWalletId,
   todayISODate,
   type CaptureType,
@@ -24,7 +28,7 @@ import { store } from "@/store"
 import { Check, ChevronDown } from "lucide-react"
 
 
-const QUICK_AMOUNTS = [500, 1000, 2000, 5000]
+const QUICK_AMOUNTS = [500, 1000, 2000, 5000, 10000, 20000]
 
 export type CaptureSubmit = {
   id?: string
@@ -62,6 +66,9 @@ type CaptureSheetProps = {
     category?: string
     expectLater?: boolean
     walletId?: string
+    note?: string
+    bankCharge?: number
+    stampDuty?: number
   }
   onSubmit: (data: CaptureSubmit) => void
 }
@@ -172,6 +179,11 @@ export function CaptureSheet({
   const isMobile = useIsMobile()
   const copy = copyFor(type)
   const savedDefault = defaultWalletId || wallets[0]?.id || "w-cash"
+  const isDebtMode = type === "i_owe" || type === "owed_to_me" || (type as string) === "debt"
+  const [debtDirection, setDebtDirection] = useState<"i_owe" | "owed_to_me">(() => {
+    if (type === "owed_to_me") return "owed_to_me"
+    return "i_owe"
+  })
 
   const [title, setTitle] = useState("")
   const [person, setPerson] = useState("")
@@ -201,16 +213,19 @@ export function CaptureSheet({
   useEffect(() => {
     if (!open) return
     const def = defaultWalletId || wallets[0]?.id || "w-cash"
+    if (type === "owed_to_me") setDebtDirection("owed_to_me")
+    else if (type === "i_owe" || (type as string) === "debt") setDebtDirection("i_owe")
+
     setTitle(presets?.title || "")
     setPerson(presets?.person || "")
     setAmount(presets?.amount || "")
-    setBankCharge(0)
-    setStampDuty(0)
+    setBankCharge(presets?.bankCharge ?? 0)
+    setStampDuty(presets?.stampDuty ?? 0)
     setWalletId(presets?.walletId || def)
     setFromWallet(presets?.fromWallet || def)
     setToWallet(presets?.toWallet || otherWallet(presets?.fromWallet || def, wallets))
     
-    if (type === "i_owe" || type === "owed_to_me") {
+    if (type === "i_owe" || type === "owed_to_me" || (type as string) === "debt") {
       const debts = store.getState().data.debts
       const uniquePeople = Array.from(new Set(debts.map((d: any) => d.person).filter(Boolean))) as string[]
       setRecentPeople(uniquePeople)
@@ -259,11 +274,12 @@ export function CaptureSheet({
 
     let finalNote = ""
     if (totalCharge > 0) {
-      finalNote = `__POS_META__${JSON.stringify({
+      const chargeMeta = JSON.stringify({
         base: amountVal,
         bankCharge,
         stampDuty: Number(amount) >= 10000 ? stampDuty : 0,
-      })}`
+      })
+      finalNote = `__POS_META__${chargeMeta}`
     }
 
 
@@ -294,29 +310,34 @@ export function CaptureSheet({
 
 
 
-    if (type === "i_owe" || type === "owed_to_me") {
+    if (isDebtMode) {
       const who = person.trim()
       if (!who) {
-        setError("Add a name.")
+        setError("Add a person name.")
         return
       }
-      if (type === "owed_to_me" && debtKind === "loan") {
+      if (!amountVal || amountVal <= 0) {
+        setError("Enter a valid amount.")
+        return
+      }
+      if (debtDirection === "owed_to_me") {
         const source = wallets.find((w) => w.id === walletId)
-        if (!source || source.balance < amountVal) {
-          setError("Not enough balance to lend.")
+        if (source && source.balance < amountVal) {
+          setError("Not enough balance to lend from this wallet.")
           return
         }
       }
       onSubmit({
         id: presets?.id,
-        type: type,
-        title: who,
+        type: debtDirection,
+        title: title.trim() || who,
         person: who,
         amount: amountVal,
-        walletId: type === "owed_to_me" && debtKind === "loan" ? walletId : undefined,
+        walletId: walletId || undefined,
         category: debtKind,
         debtKind,
         dueDate: when,
+        note: title.trim() || undefined,
         expectLater,
       })
       onOpenChange(false)
@@ -333,6 +354,7 @@ export function CaptureSheet({
         walletId,
         category: category || "client",
         dueDate: when,
+        note: finalNote,
         expectLater: true,
       })
       onOpenChange(false)
@@ -350,7 +372,7 @@ export function CaptureSheet({
     onSubmit({
       id: presets?.id,
       type,
-      title: title.trim() || category.charAt(0).toUpperCase() + category.slice(1),
+      title: title.trim() || formatCategoryLabel(category),
       amount: finalAmount,
       walletId,
       category,
@@ -362,19 +384,21 @@ export function CaptureSheet({
   }
 
   const submitLabel =
-    type === "transfer"
+    isDebtMode
+      ? debtDirection === "i_owe"
+        ? "Save Payable (I Owe)"
+        : "Save Receivable (Owed to Me)"
+      : type === "transfer"
       ? "Move money"
       : type === "task"
-        ? "Add task"
-        : type === "owed_to_me" && debtKind === "loan"
-          ? "Lend"
-          : "Save"
+      ? "Add task"
+      : "Save"
 
   const needsWallet =
     type === "expense" ||
     type === "income" ||
     type === "bill" ||
-    (type === "owed_to_me" && debtKind === "loan")
+    (isDebtMode && debtDirection === "owed_to_me")
 
   return (
     <Drawer
@@ -385,7 +409,7 @@ export function CaptureSheet({
       <DrawerContent
         className={
           isMobile
-            ? "max-h-[90vh] outline-none"
+            ? "h-[95dvh] max-h-[95dvh] outline-none"
             : "h-full max-h-none w-full max-w-md outline-none rounded-none border-l"
         }
       >
@@ -398,13 +422,15 @@ export function CaptureSheet({
         <DrawerHeader className="px-5 py-3.5">
           <DrawerTitle className="text-base font-bold tracking-tight">
             {presets?.id ? "Edit " : "Add "}
-            {copy.title.toLowerCase()}
+            {isDebtMode
+              ? debtDirection === "i_owe" ? "Payable (I Owe)" : "Receivable (Owed to Me)"
+              : copy.title.toLowerCase()}
           </DrawerTitle>
-          {copy.desc ? (
-            <DrawerDescription className="text-xs text-muted-foreground">
-              {copy.desc}
-            </DrawerDescription>
-          ) : null}
+          <DrawerDescription className="text-xs text-muted-foreground">
+            {isDebtMode
+              ? debtDirection === "i_owe" ? "Money you owe or borrowed" : "Money owed to you or lent"
+              : copy.desc}
+          </DrawerDescription>
         </DrawerHeader>
 
         <form
@@ -423,13 +449,13 @@ export function CaptureSheet({
                   autoFocus
                   className="h-10 rounded-lg border-border bg-background text-base font-semibold tabular-nums"
                 />
-                <div className="flex flex-wrap gap-1.5">
+                <div className="grid grid-cols-3 gap-1.5 pt-0.5">
                   {QUICK_AMOUNTS.map((amt) => (
                     <button
                       key={amt}
                       type="button"
                       onClick={() => setAmount(String(amt))}
-                      className="rounded-md bg-muted px-2.5 py-1 text-[11px] font-semibold tabular-nums"
+                      className="rounded-lg border border-border/80 bg-muted/40 py-1.5 text-xs font-semibold tabular-nums text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-95"
                     >
                       {currency}
                       {amt.toLocaleString()}
@@ -492,6 +518,34 @@ export function CaptureSheet({
             )}
 
 
+            {/* Debt Direction 2-Way Segmented Control */}
+            {isDebtMode && (
+              <div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-xl border border-border shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setDebtDirection("i_owe")}
+                  className={`py-2 text-xs font-semibold rounded-lg transition-all ${
+                    debtDirection === "i_owe"
+                      ? "bg-card text-foreground font-bold shadow-2xs border border-border"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  I Owe (Payable)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDebtDirection("owed_to_me")}
+                  className={`py-2 text-xs font-semibold rounded-lg transition-all ${
+                    debtDirection === "owed_to_me"
+                      ? "bg-card text-foreground font-bold shadow-2xs border border-border"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Owed to Me (Receivable)
+                </button>
+              </div>
+            )}
+
             {type === "transfer" && (
               <>
                 <WalletPicker
@@ -515,7 +569,7 @@ export function CaptureSheet({
 
             {needsWallet && (
               <WalletPicker
-                label={type === "owed_to_me" ? "Lend from" : "Wallet"}
+                label={isDebtMode ? (debtDirection === "owed_to_me" ? "Lend from" : "Wallet (Optional)") : "Wallet"}
                 wallets={wallets}
                 value={walletId}
                 onChange={setWalletId}
@@ -523,41 +577,91 @@ export function CaptureSheet({
               />
             )}
 
-            {(type === "i_owe" || type === "owed_to_me") && (
-              <>
-                <div className="space-y-1.5 relative">
-                  <FieldLabel>Person</FieldLabel>
-                  <Input
-                    value={person}
-                    onChange={(e) => {
-                      setPerson(e.target.value)
-                      setShowPersonSuggestions(true)
-                    }}
-                    onFocus={() => setShowPersonSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowPersonSuggestions(false), 200)}
-                    placeholder="Name"
-                    autoComplete="off"
-                    className="h-10 rounded-lg"
-                  />
-                  {showPersonSuggestions && recentPeople.filter(p => p.toLowerCase().includes(person.toLowerCase()) && p !== person).length > 0 && (
-                    <div className="absolute z-50 top-[60px] left-0 right-0 max-h-[200px] overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md p-1">
-                      {recentPeople.filter(p => p.toLowerCase().includes(person.toLowerCase()) && p !== person).map((p) => (
+            {isDebtMode && (
+              <div className="space-y-1.5 relative">
+                <FieldLabel>{debtDirection === "i_owe" ? "Who do you owe?" : "Who owes you?"}</FieldLabel>
+                <Input
+                  value={person}
+                  onChange={(e) => {
+                    setPerson(e.target.value)
+                    setShowPersonSuggestions(true)
+                  }}
+                  onFocus={() => setShowPersonSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowPersonSuggestions(false), 200)}
+                  placeholder="e.g. Ahmad, Sarah, Musa"
+                  autoComplete="off"
+                  className="h-10 rounded-lg"
+                />
+                {showPersonSuggestions && recentPeople.filter(p => p.toLowerCase().includes(person.toLowerCase()) && p !== person).length > 0 && (
+                  <div className="absolute z-50 top-[60px] left-0 right-0 max-h-[200px] overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md p-1">
+                    {recentPeople.filter(p => p.toLowerCase().includes(person.toLowerCase()) && p !== person).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => { 
+                          setPerson(p)
+                          setShowPersonSuggestions(false)
+                        }}
+                        className="w-full text-left rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/* 1-tap Recent Person Pills */}
+                {recentPeople.length > 0 && !person && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <span className="text-[10px] text-muted-foreground font-medium">Recent:</span>
+                    {recentPeople.slice(0, 4).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setPerson(p)}
+                        className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-muted/60 hover:bg-muted text-foreground border border-border transition-colors"
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* 1-Tap Quick Tags for Debt (Payable / Receivable) */}
+                {QUICK_DEBT_TAGS[debtDirection] && (
+                  <div className="space-y-1.5 pt-1.5 border-t border-border/50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-muted-foreground">
+                        What was it for? (1-tap to set):
+                      </span>
+                      {title && (
                         <button
-                          key={p}
                           type="button"
-                          onClick={() => { 
-                            setPerson(p)
-                            setShowPersonSuggestions(false)
-                          }}
-                          className="w-full text-left rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                          onClick={() => setTitle("")}
+                          className="text-[11px] text-primary hover:underline font-medium"
                         >
-                          {p}
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {QUICK_DEBT_TAGS[debtDirection].map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => setTitle(title === tag ? "" : tag)}
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold border transition-all ${
+                            title === tag
+                              ? "border-primary bg-primary text-primary-foreground shadow-2xs font-bold"
+                              : "border-border bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted"
+                          }`}
+                        >
+                          {tag}
                         </button>
                       ))}
                     </div>
-                  )}
-                </div>
-              </>
+                  </div>
+                )}
+              </div>
             )}
 
             {type === "income" && (
@@ -590,16 +694,7 @@ export function CaptureSheet({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                   {(type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map((catName) => {
                     const c = catName as string
-                    const label =
-                      c === "data_airtime"
-                        ? "Airtime & Data"
-                        : c === "food"
-                        ? "Food"
-                        : c === "transport"
-                        ? "Transport"
-                        : c === "general"
-                        ? "General"
-                        : c.charAt(0).toUpperCase() + c.slice(1)
+                    const label = formatCategoryLabel(c)
                     return (
                       <button
                         key={c}
@@ -616,10 +711,76 @@ export function CaptureSheet({
                     )
                   })}
                 </div>
+
+                {/* 1-Tap Quick Tags for Everyday Expenses */}
+                {type === "expense" && QUICK_EXPENSE_TAGS[category] && (
+                  <div className="space-y-1.5 pt-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-muted-foreground">What's it for? (1-tap to set):</span>
+                      {title && (
+                        <button
+                          type="button"
+                          onClick={() => setTitle("")}
+                          className="text-[11px] text-primary hover:underline font-medium"
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {QUICK_EXPENSE_TAGS[category].map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => setTitle(title === tag ? "" : tag)}
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold border transition-all ${
+                            title === tag
+                              ? "border-primary bg-primary text-primary-foreground shadow-2xs font-bold"
+                              : "border-border bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted"
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 1-Tap Quick Tags for Income */}
+                {type === "income" && QUICK_INCOME_TAGS[category] && (
+                  <div className="space-y-1.5 pt-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-muted-foreground">What's it for? (1-tap to set):</span>
+                      {title && (
+                        <button
+                          type="button"
+                          onClick={() => setTitle("")}
+                          className="text-[11px] text-primary hover:underline font-medium"
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {QUICK_INCOME_TAGS[category].map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => setTitle(title === tag ? "" : tag)}
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold border transition-all ${
+                            title === tag
+                              ? "border-primary bg-primary text-primary-foreground shadow-2xs font-bold"
+                              : "border-border bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted"
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-
-
 
             <div className="space-y-1.5">
               <FieldLabel>
@@ -643,13 +804,24 @@ export function CaptureSheet({
             </div>
 
             <div className="space-y-1.5">
-              <FieldLabel>
-                {type === "task"
-                  ? "Task"
-                  : type === "i_owe" || type === "owed_to_me" || type === "transfer"
-                    ? "Note (optional)"
-                    : "Title"}
-              </FieldLabel>
+              <div className="flex items-center justify-between">
+                <FieldLabel>
+                  {type === "task"
+                    ? "Task"
+                    : type === "expense" || type === "income" || isDebtMode
+                    ? "What was it for? (Optional)"
+                    : "Title / Narration"}
+                </FieldLabel>
+                {title && (
+                  <button
+                    type="button"
+                    onClick={() => setTitle("")}
+                    className="text-[10px] text-muted-foreground hover:text-foreground"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -657,17 +829,35 @@ export function CaptureSheet({
                   type === "task"
                     ? "e.g. Call bank"
                     : type === "transfer"
-                      ? "Optional"
+                      ? "Optional description"
                       : type === "bill"
                         ? "e.g. Internet"
-                        : type === "i_owe" || type === "owed_to_me"
-                          ? "Optional"
-                          : "e.g. Coffee"
+                        : type === "income"
+                          ? `Leave blank for "${formatCategoryLabel(category)}" or type note`
+                          : isDebtMode
+                            ? debtDirection === "i_owe"
+                              ? "e.g. Borrowed cash, Dinner, Fuel"
+                              : "e.g. Lent cash, Project balance, Invoice"
+                            : `Leave blank for "${formatCategoryLabel(category)}" or type item`
                 }
                 required={type === "task"}
                 className="h-10 rounded-lg"
                 autoFocus={type === "task"}
               />
+              {(type === "expense" || type === "income") && (
+                <p className="text-[11px] text-muted-foreground">
+                  {title.trim()
+                    ? `Saved as: "${title.trim()}" (${formatCategoryLabel(category)})`
+                    : `Will automatically be saved as: "${formatCategoryLabel(category)}"`}
+                </p>
+              )}
+              {isDebtMode && (
+                <p className="text-[11px] text-muted-foreground">
+                  {title.trim()
+                    ? `Saved reason: "${title.trim()}"`
+                    : `Optional reason or note for this ${debtDirection === "i_owe" ? "payable" : "receivable"}`}
+                </p>
+              )}
             </div>
 
             {error && <p className="text-sm font-medium text-destructive">{error}</p>}

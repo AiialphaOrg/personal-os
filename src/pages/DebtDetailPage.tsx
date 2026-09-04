@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useParams, useNavigate } from "react-router"
 import { useHeader } from "@/hooks/use-header"
 import { usePosQuery, usePosMutations } from "@/hooks/use-pos-query"
@@ -26,6 +26,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export function DebtDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -46,19 +56,31 @@ export function DebtDetailPage() {
     return debts.find((d) => d.id === id)
   }, [debts, id])
 
-  const handleDelete = () => {
-    if (!debt) return
-    if (confirm("Are you sure you want to delete this record?")) {
-      mutations.deleteDebt.mutate(debt.id, {
-        onSuccess: () => {
-          toast.success("Record deleted")
-          navigate("/money")
-        },
-        onError: () => {
-          toast.error("Failed to delete record")
-        },
-      })
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+
+  useEffect(() => {
+    if (!debt) {
+      const timer = setTimeout(() => {
+        navigate("/money", { replace: true })
+      }, 50)
+      return () => clearTimeout(timer)
     }
+  }, [debt, navigate])
+
+  const confirmDelete = () => {
+    if (!debt) return
+    setIsDeleting(true)
+    navigate("/money", { replace: true })
+    mutations.deleteDebt.mutate(debt.id, {
+      onSuccess: () => {
+        toast.success("Record deleted")
+      },
+      onError: () => {
+        setIsDeleting(false)
+        toast.error("Failed to delete record")
+      },
+    })
   }
 
   useHeader({
@@ -79,7 +101,7 @@ export function DebtDetailPage() {
           type="button"
           size="sm"
           variant="outline"
-          onClick={handleDelete}
+          onClick={() => setDeleteDialogOpen(true)}
           className="h-8 rounded-lg text-xs font-semibold gap-1 px-2.5 border-border bg-card text-red-500 hover:text-red-600 hover:bg-red-500/10 shadow-2xs"
         >
           <Trash2 className="size-3.5" />
@@ -92,16 +114,25 @@ export function DebtDetailPage() {
   if (!debt) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-center p-4">
-        <p className="text-sm font-semibold text-foreground">Record not found</p>
-        <p className="text-xs text-muted-foreground">The debt or receivable may have been deleted or does not exist.</p>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => navigate("/money")}
-          className="h-9 text-xs rounded-lg mt-2"
-        >
-          Back to Finances
-        </Button>
+        {isDeleting ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="size-4 animate-spin text-primary" />
+            <span>Deleting record…</span>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm font-semibold text-foreground">Record not found</p>
+            <p className="text-xs text-muted-foreground">The debt or receivable may have been deleted or does not exist.</p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate("/money")}
+              className="h-9 text-xs rounded-lg mt-2"
+            >
+              Back to Finances
+            </Button>
+          </>
+        )}
       </div>
     )
   }
@@ -358,6 +389,27 @@ export function DebtDetailPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Shadcn Alert Dialog for Delete Confirmation */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Record?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this debt record. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Edit Drawer */}
       {isEditing && (
         <CaptureSheet
@@ -368,9 +420,12 @@ export function DebtDetailPage() {
           currency={currency}
           defaultWalletId={wallets[0]?.id || "w-cash"}
           presets={{
+            id: debt.id,
             title: debt.person,
             amount: String(debt.amount),
             person: debt.person,
+            debtKind: debt.kind,
+            dueDate: debt.dueDate,
           }}
           onSubmit={handleEditSubmit}
         />

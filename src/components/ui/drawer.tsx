@@ -8,21 +8,10 @@ function Drawer({
   shouldScaleBackground = true,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
-  if (props.direction && props.direction !== "bottom") {
-    return (
-      <DrawerPrimitive.Root
-        data-slot="drawer"
-        shouldScaleBackground={shouldScaleBackground}
-        {...props}
-      />
-    )
-  }
-
   return (
     <DrawerPrimitive.Root
       data-slot="drawer"
       shouldScaleBackground={shouldScaleBackground}
-      snapPoints={props.snapPoints || [0.6, 1]}
       {...props}
     />
   )
@@ -73,7 +62,7 @@ function DrawerContent({
       <DrawerPrimitive.Content
         data-slot="drawer-content"
         className={cn(
-          "group/drawer-content fixed z-50 flex h-full max-h-[96dvh] flex-col bg-card text-card-foreground shadow-2xl outline-none data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:bottom-0 data-[vaul-drawer-direction=bottom]:rounded-t-2xl data-[vaul-drawer-direction=bottom]:border-t data-[vaul-drawer-direction=bottom]:border-border/60 data-[vaul-drawer-direction=left]:inset-0 data-[vaul-drawer-direction=right]:inset-0 data-[vaul-drawer-direction=top]:inset-0",
+          "group/drawer-content fixed z-50 flex h-full max-h-[96dvh] flex-col bg-card text-card-foreground shadow-2xl outline-none data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:bottom-0 data-[vaul-drawer-direction=bottom]:h-[95dvh] data-[vaul-drawer-direction=bottom]:max-h-[96dvh] data-[vaul-drawer-direction=bottom]:rounded-t-2xl data-[vaul-drawer-direction=bottom]:border-t data-[vaul-drawer-direction=bottom]:border-border/60 data-[vaul-drawer-direction=left]:inset-0 data-[vaul-drawer-direction=right]:inset-0 data-[vaul-drawer-direction=top]:inset-0",
           className
         )}
         {...props}

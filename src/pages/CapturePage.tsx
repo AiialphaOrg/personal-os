@@ -14,24 +14,27 @@ import {
 import {
   EXPENSE_CATEGORIES,
   INCOME_CATEGORIES,
+  QUICK_EXPENSE_TAGS,
+  QUICK_INCOME_TAGS,
+  QUICK_DEBT_TAGS,
+  formatCategoryLabel,
   setDefaultWalletId,
   type CaptureType,
   type DebtKind,
 } from "@/lib/storage"
 import { toast } from "sonner"
 import {
-  Check,
   Calendar as CalendarIcon,
   Tag,
   Wallet,
   User,
-  FileText,
   Utensils,
   Car,
   Smartphone,
   Briefcase,
   Store,
   TrendingUp,
+  ShoppingBag,
 } from "lucide-react"
 import { useAppSelector } from "@/store/hooks"
 import { useKeyboardInset } from "@/hooks/use-keyboard-inset"
@@ -74,6 +77,8 @@ function getCategoryIcon(cat: string) {
       return <Store className="size-3.5" />
     case "investment":
       return <TrendingUp className="size-3.5" />
+    case "shopping":
+      return <ShoppingBag className="size-3.5" />
     case "general":
     default:
       return <Tag className="size-3.5" />
@@ -81,23 +86,7 @@ function getCategoryIcon(cat: string) {
 }
 
 function getCategoryLabel(cat: string) {
-  switch (cat) {
-    case "food":
-      return "Food"
-    case "transport":
-      return "Transport"
-    case "data_airtime":
-      return "Airtime & Data"
-    case "salary":
-      return "Salary"
-    case "business":
-      return "Business"
-    case "investment":
-      return "Investment"
-    case "general":
-    default:
-      return "General"
-  }
+  return formatCategoryLabel(cat)
 }
 
 
@@ -109,7 +98,17 @@ export function CapturePage() {
   const mutations = usePosMutations()
 
   const rawType = (params.type || "expense") as CaptureType
-  const pageTitle = getTitle(rawType)
+  const isDebtMode = rawType === "i_owe" || rawType === "owed_to_me" || (rawType as string) === "debt"
+  const [debtDirection, setDebtDirection] = useState<"i_owe" | "owed_to_me">(() => {
+    if (rawType === "owed_to_me") return "owed_to_me"
+    return "i_owe"
+  })
+
+  const pageTitle = isDebtMode
+    ? debtDirection === "i_owe"
+      ? "Add Payable (I Owe)"
+      : "Add Receivable (Owed to Me)"
+    : getTitle(rawType)
 
   useHeader({ title: pageTitle })
 
@@ -156,10 +155,8 @@ export function CapturePage() {
 
   const [person, setPerson] = useState(() => searchParams.get("person") || "")
   const debtKind: DebtKind = (searchParams.get("debtKind") as DebtKind) || "loan"
-  const [debtSubType, setDebtSubType] = useState<"cash" | "credit">("cash")
   const [dueDate, setDueDate] = useState(() => searchParams.get("dueDate") || "")
-  const [note, setNote] = useState(() => searchParams.get("note") || "")
-  const [title] = useState(() => searchParams.get("title") || "")
+  const [title, setTitle] = useState(() => searchParams.get("title") || "")
   const [showPersonSuggestions, setShowPersonSuggestions] = useState(false)
   const [error, setError] = useState("")
 
@@ -175,7 +172,7 @@ export function CapturePage() {
       return
     }
 
-    if ((rawType === "i_owe" || rawType === "owed_to_me") && !person.trim()) {
+    if (isDebtMode && !person.trim()) {
       setError("Please specify the person name")
       return
     }
@@ -186,16 +183,10 @@ export function CapturePage() {
         const fromW = wallets.find((w) => w.id === fromWallet)?.name || "Wallet"
         const toW = wallets.find((w) => w.id === toWallet)?.name || "Wallet"
         itemTitle = `Transfer: ${fromW} → ${toW}`
-      } else if (rawType === "i_owe") {
-        itemTitle =
-          debtSubType === "credit"
-            ? `Credit Purchase: ${category} (${person.trim()})`
-            : `Borrowed from ${person.trim()}`
-      } else if (rawType === "owed_to_me") {
-        itemTitle =
-          debtKind === "client"
-            ? `Client Invoice: ${person.trim()}`
-            : `Lent to ${person.trim()}`
+      } else if (isDebtMode) {
+        itemTitle = debtDirection === "i_owe"
+          ? `Payable: ${person.trim()}`
+          : `Receivable: ${person.trim()}`
       } else {
         itemTitle = category.charAt(0).toUpperCase() + category.slice(1)
       }
@@ -213,10 +204,9 @@ export function CapturePage() {
     const baseAmount = numAmt || 0
     const finalAmount = baseAmount + totalCharge
 
-    let finalNote = note.trim()
+    let finalNote = ""
     if (totalCharge > 0) {
       const chargeMeta = JSON.stringify({
-        text: finalNote,
         base: baseAmount,
         bankCharge,
         stampDuty: Number(amount) >= 10000 ? stampDuty : 0,
@@ -225,21 +215,22 @@ export function CapturePage() {
     }
 
     try {
-      if (rawType === "i_owe" || rawType === "owed_to_me") {
-        await mutations.addDebt.mutateAsync({
+      if (isDebtMode) {
+        mutations.addDebt.mutateAsync({
           person: person.trim(),
           amount: baseAmount,
-          direction: rawType,
+          direction: debtDirection,
           kind: debtKind,
-          dueDate,
-          note: finalNote,
-          walletId: debtSubType === "cash" ? walletId : undefined,
-          isCashLoan: debtSubType === "cash",
-          isCreditPurchase: debtSubType === "credit" && rawType === "i_owe",
+          dueDate: dueDate || undefined,
+          note: title.trim() || undefined,
+          walletId: walletId || undefined,
+          isCashLoan: true,
           category,
+        }).catch((err: any) => {
+          toast.error(err.message || "Failed to sync debt with server")
         })
       } else {
-        await mutations.addTransaction.mutateAsync({
+        mutations.addTransaction.mutateAsync({
           title: itemTitle,
           amount: finalAmount,
           type: rawType,
@@ -248,14 +239,16 @@ export function CapturePage() {
           fromWallet,
           toWallet,
           note: finalNote,
+        }).catch((err: any) => {
+          toast.error(err.message || "Failed to sync transaction with server")
         })
       }
 
-      toast.success(`${pageTitle} saved online`)
+      toast.success(`${pageTitle} saved`)
       navigate(-1)
 
     } catch (err: any) {
-      setError(err.message || "Failed to save entry online")
+      setError(err.message || "Failed to save entry")
     }
   }
 
@@ -267,9 +260,37 @@ export function CapturePage() {
       className=" pb-10 space-y-4"
       style={{ paddingBottom: keyboardInset > 0 ? keyboardInset : undefined }}
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-3 max-w-lg mx-auto">
+        {/* Debt Direction 2-Way Segmented Control */}
+        {isDebtMode && (
+          <div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-xl border border-border shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setDebtDirection("i_owe")}
+              className={`py-2 text-xs font-semibold rounded-lg transition-all ${
+                debtDirection === "i_owe"
+                  ? "bg-card text-foreground font-bold shadow-2xs border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              I Owe (Payable)
+            </button>
+            <button
+              type="button"
+              onClick={() => setDebtDirection("owed_to_me")}
+              className={`py-2 text-xs font-semibold rounded-lg transition-all ${
+                debtDirection === "owed_to_me"
+                  ? "bg-card text-foreground font-bold shadow-2xs border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Owed to Me (Receivable)
+            </button>
+          </div>
+        )}
+
         {/* 1. Account / Wallet Selection with Shadcn Select */}
-        <section className="rounded-lg border border-border bg-card p-4 space-y-2.5 shadow-xs">
+        <section className="rounded-lg border border-border bg-card p-3.5 sm:p-4 space-y-2 shadow-xs">
           <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
             <Wallet className="size-4 text-primary" />
             <span>
@@ -277,20 +298,16 @@ export function CapturePage() {
                 ? "Select Accounts"
                 : rawType === "income"
                 ? "Deposit Into"
-                : rawType === "i_owe"
-                ? debtSubType === "cash"
-                  ? "Deposit Cash Loan Into"
-                  : "Purchased on Credit (No wallet deduction)"
-                : rawType === "owed_to_me"
-                ? debtSubType === "cash"
-                  ? "Lending Money From"
-                  : "Client Work / Invoice"
+                : isDebtMode
+                ? debtDirection === "i_owe"
+                  ? "Wallet / Account (Optional)"
+                  : "Lending From Wallet"
                 : "Paying From"}
             </span>
           </div>
 
           {rawType === "transfer" ? (
-            <div className="grid grid-cols-2 gap-3 pt-0.5">
+            <div className="grid grid-cols-2 gap-2.5 pt-0.5">
               <div className="space-y-1">
                 <label className="text-[11px] font-medium text-muted-foreground">
                   From Wallet
@@ -304,7 +321,7 @@ export function CapturePage() {
                     }
                   }}
                 >
-                  <SelectTrigger className="h-10 rounded-lg text-xs font-semibold">
+                  <SelectTrigger className="h-9 rounded-lg text-xs font-semibold">
                     <SelectValue placeholder="Select wallet" />
                   </SelectTrigger>
                   <SelectContent>
@@ -322,7 +339,7 @@ export function CapturePage() {
                   To Wallet
                 </label>
                 <Select value={toWallet} onValueChange={setToWallet}>
-                  <SelectTrigger className="h-10 rounded-lg text-xs font-semibold">
+                  <SelectTrigger className="h-9 rounded-lg text-xs font-semibold">
                     <SelectValue placeholder="Select wallet" />
                   </SelectTrigger>
                   <SelectContent>
@@ -340,238 +357,318 @@ export function CapturePage() {
           ) : (
             <div className="pt-0.5">
               <Select value={walletId} onValueChange={setWalletId}>
-                <SelectTrigger className="h-10 rounded-lg text-xs font-semibold">
-                  <SelectValue placeholder="Select wallet" />
+                <SelectTrigger className="h-9 rounded-lg text-xs font-semibold">
+                  <SelectValue placeholder="Select account" />
                 </SelectTrigger>
                 <SelectContent>
-                  {wallets.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.name} ({currency}{w.balance.toLocaleString()})
-                    </SelectItem>
-                  ))}
+                  {wallets
+                    .filter((w) => w.kind !== "investment")
+                    .map((w) => (
+                      <SelectItem key={w.id} value={w.id}>
+                        {w.name} ({currency}{w.balance.toLocaleString()})
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
           )}
         </section>
 
-        {/* 2. Amount Field: Clean, Large, Left-Aligned with Full-Width Grid Quick Numbers */}
-        {rawType !== "task" && (
-          <section className="rounded-lg border border-border bg-card p-4 sm:p-5 text-left space-y-3 shadow-xs">
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Amount
+        {/* 2. Amount Section */}
+        <section className="rounded-lg border border-border bg-card p-3.5 sm:p-4 space-y-2.5 shadow-xs">
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              {isDebtMode ? "Debt Amount" : "Amount"}
             </label>
-            <div className="flex items-baseline text-left">
-              <span className="text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground mr-2 select-none">
+            <div className="relative flex items-center">
+              <span className="absolute left-3 text-lg font-bold text-muted-foreground pointer-events-none">
                 {currency}
               </span>
               <FormattedNumberInput
                 value={amount}
-                onValueChange={setAmount}
-                placeholder="0"
+                onValueChange={(val) => setAmount(val)}
+                placeholder="0.00"
                 autoFocus
-                className="border-none bg-transparent text-left text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground outline-none focus-visible:ring-0 p-0 w-full"
+                className="h-12 pl-8 text-xl sm:text-2xl font-bold tracking-tight rounded-md"
               />
             </div>
+          </div>
 
-            {/* Quick Amount Grid */}
-            <div className="pt-2 border-t border-border/50 space-y-2">
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-                {QUICK_AMOUNTS.map((amt) => (
+          {/* Quick Amounts - 2 Rows */}
+          <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+            {QUICK_AMOUNTS.map((val) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setAmount(String(val))}
+                className="rounded-lg py-1.5 text-xs font-semibold transition-all border border-border/80 bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95"
+              >
+                {currency}{val.toLocaleString()}
+              </button>
+            ))}
+          </div>
+
+          {/* Bank Charges if paying from bank */}
+          {isBankWallet && (rawType === "expense" || rawType === "transfer") && (
+            <div className="pt-2 border-t border-border/50 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Bank Transfer Charge
+                </span>
+                <span className="text-xs font-medium text-muted-foreground tabular-nums">
+                  {bankCharge > 0 ? `+${currency}${bankCharge}` : "None"}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[
+                  { label: "None", value: 0 },
+                  { label: `+${currency}10`, value: 10 },
+                  { label: `+${currency}25`, value: 25 },
+                  { label: `+${currency}50`, value: 50 },
+                ].map((chip) => (
                   <button
-                    key={amt}
+                    key={chip.value}
                     type="button"
-                    onClick={() => setAmount(String(amt))}
-                    className="w-full rounded-md border border-border bg-muted/60 py-2 text-xs font-semibold tabular-nums text-foreground hover:bg-muted hover:border-foreground/20 active:scale-95 transition-all text-center shadow-2xs"
+                    onClick={() => setBankCharge(chip.value)}
+                    className={`rounded-md py-1 text-xs font-semibold transition-all border ${
+                      bankCharge === chip.value
+                        ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold shadow-2xs"
+                        : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
+                    }`}
                   >
-                    {currency}
-                    {amt >= 1000 ? `${amt / 1000}k` : amt}
+                    {chip.label}
                   </button>
                 ))}
               </div>
 
-              {/* Bank Charges & Stamp Duty (Only for Bank Wallets) */}
-              {isBankWallet && (rawType === "expense" || rawType === "transfer") && (
-                <div className="pt-2 border-t border-border/50 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                      Bank Charges
-                    </span>
-                    <span className="text-xs font-medium text-muted-foreground tabular-nums">
-                      {bankCharge > 0 ? `+${currency}${bankCharge}` : "None"}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {[
-                      { label: "None", value: 0 },
-                      { label: `+${currency}10`, value: 10 },
-                      { label: `+${currency}25`, value: 25 },
-                      { label: `+${currency}50`, value: 50 },
-                    ].map((chip) => (
-                      <button
-                        key={chip.value}
-                        type="button"
-                        onClick={() => setBankCharge(chip.value)}
-                        className={`rounded-md py-1.5 text-xs font-semibold transition-all border ${
-                          bankCharge === chip.value
-                            ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold shadow-2xs"
-                            : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {chip.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Stamp Duty only for transactions >= 10,000 */}
-                  {Number(amount) >= 10000 && (
-                    <div className="pt-1 flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-muted-foreground">
-                        Stamp Duty (≥ {currency}10,000)
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setStampDuty((v) => (v === 50 ? 0 : 50))}
-                        className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all border ${
-                          stampDuty === 50
-                            ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold shadow-2xs"
-                            : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {stampDuty === 50 ? `+${currency}50 Applied` : `+${currency}50 (None)`}
-                      </button>
-                    </div>
-                  )}
+              {Number(amount) >= 10000 && (
+                <div className="pt-1 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-muted-foreground">
+                    Stamp Duty (≥ {currency}10,000)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setStampDuty((v) => (v === 50 ? 0 : 50))}
+                    className={`rounded-md px-2.5 py-0.5 text-xs font-semibold transition-all border ${
+                      stampDuty === 50
+                        ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold shadow-2xs"
+                        : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {stampDuty === 50 ? `+${currency}50 Applied` : `+${currency}50 (None)`}
+                  </button>
                 </div>
               )}
             </div>
-          </section>
-        )}
+          )}
+        </section>
 
-        {/* 3. Category & Details Card (Clean Sheet of Paper, Less Rounded) */}
-        <section className="rounded-lg border border-border bg-card p-4 space-y-4 shadow-xs">
-          {/* Category Selection (4 compact categories: General, Food, Transport, Airtime & Data) */}
+        {/* 3. Category & Details Card */}
+        <section className="rounded-lg border border-border bg-card p-3.5 sm:p-4 space-y-3 shadow-xs">
+          {/* Category Selection for expense/income */}
           {(rawType === "expense" || rawType === "income") && (
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
                 <Tag className="size-4 text-primary" />
                 <span>Category</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {categoryList.map((c) => {
-                  const selected = category === c
+              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                {categoryList.slice(0, 8).map((catName) => {
+                  const isSelected = category === catName
                   return (
                     <button
-                      key={c}
+                      key={catName}
                       type="button"
-                      onClick={() => setCategory(c)}
-                      className={`flex items-center justify-between rounded-md border px-3 py-2.5 text-xs font-semibold transition-all ${
-                        selected
-                          ? "border-primary bg-primary/10 text-primary shadow-2xs font-bold"
-                          : "border-border bg-background text-muted-foreground hover:text-foreground"
+                      onClick={() => setCategory(catName)}
+                      className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all border ${
+                        isSelected
+                          ? "border-primary bg-primary/10 text-primary font-bold shadow-2xs"
+                          : "border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted/30"
                       }`}
                     >
-                      <div className="flex items-center gap-2 truncate">
-                        <span className={selected ? "text-primary" : "text-muted-foreground"}>
-                          {getCategoryIcon(c)}
-                        </span>
-                        <span className="truncate">{getCategoryLabel(c)}</span>
-                      </div>
-                      {selected && <Check className="size-3.5 shrink-0 text-primary" />}
+                      {getCategoryIcon(catName)}
+                      <span className="truncate">{getCategoryLabel(catName)}</span>
                     </button>
                   )
                 })}
               </div>
+
+              {/* 1-Tap Quick Tags for Everyday Expenses */}
+              {rawType === "expense" && QUICK_EXPENSE_TAGS[category] && (
+                <div className="space-y-1 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-medium text-muted-foreground">What's it for? (1-tap to set):</span>
+                    {title && (
+                      <button
+                        type="button"
+                        onClick={() => setTitle("")}
+                        className="text-[10px] text-primary hover:underline font-medium"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {QUICK_EXPENSE_TAGS[category].map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => setTitle(title === tag ? "" : tag)}
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold border transition-all ${
+                          title === tag
+                            ? "border-primary bg-primary text-primary-foreground shadow-2xs font-bold"
+                            : "border-border bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 1-Tap Quick Tags for Income */}
+              {rawType === "income" && QUICK_INCOME_TAGS[category] && (
+                <div className="space-y-1 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-medium text-muted-foreground">What's it for? (1-tap to set):</span>
+                    {title && (
+                      <button
+                        type="button"
+                        onClick={() => setTitle("")}
+                        className="text-[10px] text-primary hover:underline font-medium"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {QUICK_INCOME_TAGS[category].map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => setTitle(title === tag ? "" : tag)}
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold border transition-all ${
+                          title === tag
+                            ? "border-primary bg-primary text-primary-foreground shadow-2xs font-bold"
+                            : "border-border bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-
-          {/* Person Selection & Credit/Loan Choice (Payable / Receivable) */}
-          {(rawType === "i_owe" || rawType === "owed_to_me") && (
-            <div className="space-y-3.5">
-              {/* How was this debt created? */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Transaction Type
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setDebtSubType("cash")}
-                    className={`h-9 rounded-md border text-xs font-semibold transition-all ${
-                      debtSubType === "cash"
-                        ? "border-primary bg-primary/10 text-primary font-bold shadow-2xs"
-                        : "border-border bg-background text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {rawType === "i_owe" ? "Cash/Bank Borrowed" : "Lent Cash/Transfer"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDebtSubType("credit")}
-                    className={`h-9 rounded-md border text-xs font-semibold transition-all ${
-                      debtSubType === "credit"
-                        ? "border-primary bg-primary/10 text-primary font-bold shadow-2xs"
-                        : "border-border bg-background text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {rawType === "i_owe" ? "Bought on Credit" : "Client Work/Invoice"}
-                  </button>
-                </div>
+          {/* Person Selection (Simplified for Debt) */}
+          {isDebtMode && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                <User className="size-4 text-primary" />
+                <span>{debtDirection === "i_owe" ? "Who do you owe?" : "Who owes you?"}</span>
+              </div>
+              <div className="relative">
+                <Input
+                  value={person}
+                  onChange={(e) => {
+                    setPerson(e.target.value)
+                    setShowPersonSuggestions(true)
+                  }}
+                  onFocus={() => setShowPersonSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowPersonSuggestions(false), 200)}
+                  placeholder="e.g. Ahmad, Sarah, Musa"
+                  autoComplete="off"
+                  className="h-10 rounded-md text-xs font-medium"
+                />
+                {showPersonSuggestions &&
+                  recentPeople.filter(
+                    (p) =>
+                      p.toLowerCase().includes(person.toLowerCase()) && p !== person
+                  ).length > 0 && (
+                    <div className="absolute z-50 top-11 left-0 right-0 max-h-40 overflow-y-auto rounded-md border border-border bg-card p-1 shadow-lg">
+                      {recentPeople
+                        .filter(
+                          (p) =>
+                            p.toLowerCase().includes(person.toLowerCase()) && p !== person
+                        )
+                        .map((p) => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => {
+                              setPerson(p)
+                              setShowPersonSuggestions(false)
+                            }}
+                            className="w-full rounded px-3 py-2 text-left text-xs font-medium text-foreground hover:bg-muted"
+                          >
+                            {p}
+                          </button>
+                        ))}
+                    </div>
+                  )}
               </div>
 
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                  <User className="size-4 text-primary" />
-                  <span>Person Name</span>
+              {/* 1-tap Recent Person Pills */}
+              {recentPeople.length > 0 && !person && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <span className="text-[10px] text-muted-foreground font-medium">Recent:</span>
+                  {recentPeople.slice(0, 4).map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPerson(p)}
+                      className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-muted/60 hover:bg-muted text-foreground border border-border transition-colors"
+                    >
+                      {p}
+                    </button>
+                  ))}
                 </div>
-                <div className="relative">
-                  <Input
-                    value={person}
-                    onChange={(e) => {
-                      setPerson(e.target.value)
-                      setShowPersonSuggestions(true)
-                    }}
-                    onFocus={() => setShowPersonSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowPersonSuggestions(false), 200)}
-                    placeholder="e.g. Ahmad, Sarah, Musa"
-                    autoComplete="off"
-                    className="h-10 rounded-md text-xs font-medium"
-                  />
-                  {showPersonSuggestions &&
-                    recentPeople.filter(
-                      (p) =>
-                        p.toLowerCase().includes(person.toLowerCase()) && p !== person
-                    ).length > 0 && (
-                      <div className="absolute z-50 top-11 left-0 right-0 max-h-40 overflow-y-auto rounded-md border border-border bg-card p-1 shadow-lg">
-                        {recentPeople
-                          .filter(
-                            (p) =>
-                              p.toLowerCase().includes(person.toLowerCase()) && p !== person
-                          )
-                          .map((p) => (
-                            <button
-                              key={p}
-                              type="button"
-                              onClick={() => {
-                                setPerson(p)
-                                setShowPersonSuggestions(false)
-                              }}
-                              className="w-full rounded px-3 py-2 text-left text-xs font-medium text-foreground hover:bg-muted"
-                            >
-                              {p}
-                            </button>
-                          ))}
-                      </div>
+              )}
+
+              {/* 1-Tap Quick Tags for Debt (Payable / Receivable) */}
+              {QUICK_DEBT_TAGS[debtDirection] && (
+                <div className="space-y-1 pt-1.5 border-t border-border/50">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-medium text-muted-foreground">
+                      What was it for? (1-tap to set):
+                    </span>
+                    {title && (
+                      <button
+                        type="button"
+                        onClick={() => setTitle("")}
+                        className="text-[10px] text-primary hover:underline font-medium"
+                      >
+                        Reset
+                      </button>
                     )}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {QUICK_DEBT_TAGS[debtDirection].map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => setTitle(title === tag ? "" : tag)}
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold border transition-all ${
+                          title === tag
+                            ? "border-primary bg-primary text-primary-foreground shadow-2xs font-bold"
+                            : "border-border bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
           {/* Due Date (Payable, Receivable, Bill) */}
-          {(rawType === "i_owe" || rawType === "owed_to_me" || rawType === "bill") && (
-            <div className="space-y-1.5 pt-1 border-t border-border/50">
+          {(isDebtMode || rawType === "bill") && (
+            <div className="space-y-1 pt-1 border-t border-border/50">
               <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
                 <CalendarIcon className="size-4 text-primary" />
                 <span>Due Date (Optional)</span>
@@ -580,24 +677,67 @@ export function CapturePage() {
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="h-10 rounded-md text-xs"
+                className="h-9 rounded-md text-xs"
               />
             </div>
           )}
 
-          {/* Note & Reference */}
-          <div className="space-y-1.5 pt-1 border-t border-border/50">
-            <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-              <FileText className="size-4 text-primary" />
-              <span>Note & Reference</span>
+          {/* Title / Description */}
+          {rawType !== "transfer" && (
+            <div className="space-y-1 pt-1 border-t border-border/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                  <Tag className="size-4 text-primary" />
+                  <span>
+                    {rawType === "expense" || rawType === "income" || isDebtMode
+                      ? "What was it for? (Optional)"
+                      : rawType === "bill"
+                      ? "Bill Name"
+                      : "Title / Narration"}
+                  </span>
+                </div>
+                {title && (
+                  <button
+                    type="button"
+                    onClick={() => setTitle("")}
+                    className="text-[10px] text-muted-foreground hover:text-foreground"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={
+                  rawType === "income"
+                    ? `Leave blank for "${getCategoryLabel(category)}" or type note`
+                    : rawType === "bill"
+                    ? "e.g. Internet subscription, Electricity"
+                    : isDebtMode
+                    ? debtDirection === "i_owe"
+                      ? "e.g. Borrowed cash, Dinner, Fuel"
+                      : "e.g. Lent cash, Project balance, Invoice"
+                    : `Leave blank for "${getCategoryLabel(category)}" or type specific item`
+                }
+                className="h-9 rounded-md text-xs font-medium"
+              />
+              {(rawType === "expense" || rawType === "income") && (
+                <p className="text-[11px] text-muted-foreground">
+                  {title.trim()
+                    ? `Saved as: "${title.trim()}" (${getCategoryLabel(category)})`
+                    : `Will automatically be saved as: "${getCategoryLabel(category)}"`}
+                </p>
+              )}
+              {isDebtMode && (
+                <p className="text-[11px] text-muted-foreground">
+                  {title.trim()
+                    ? `Saved reason: "${title.trim()}"`
+                    : `Optional reason or note for this ${debtDirection === "i_owe" ? "payable" : "receivable"}`}
+                </p>
+              )}
             </div>
-            <Input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Add reference, receipt info, or notes..."
-              className="h-10 rounded-md text-xs"
-            />
-          </div>
+          )}
         </section>
 
         {error && (

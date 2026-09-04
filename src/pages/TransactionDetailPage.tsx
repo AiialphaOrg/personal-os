@@ -1,9 +1,10 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useParams, useNavigate } from "react-router"
 import { useHeader } from "@/hooks/use-header"
 import { usePosQuery, usePosMutations } from "@/hooks/use-pos-query"
 import { CaptureSheet, type CaptureSubmit } from "@/components/capture-sheet"
 import { applyCaptureSubmit } from "@/lib/capture-apply"
+import { formatCategoryLabel } from "@/lib/storage"
 import { toast } from "sonner"
 import {
   Edit3,
@@ -18,6 +19,16 @@ import {
   Check,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 function formatTransactionDate(dateStr?: string, timeStr?: string) {
   if (!dateStr) return "Just now"
@@ -40,11 +51,23 @@ export function TransactionDetailPage() {
   const mutations = usePosMutations()
 
   const [isEditing, setIsEditing] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [copied, setCopied] = useState(false)
 
   const transaction = useMemo(() => {
     return transactions.find((t) => t.id === id)
   }, [transactions, id])
+
+  // If transaction is deleted or not found, smoothly redirect back to transactions
+  useEffect(() => {
+    if (!transaction) {
+      const timer = setTimeout(() => {
+        navigate("/transactions", { replace: true })
+      }, 50)
+      return () => clearTimeout(timer)
+    }
+  }, [transaction, navigate])
 
   const wallet = useMemo(() => {
     if (!transaction) return null
@@ -52,19 +75,19 @@ export function TransactionDetailPage() {
     return wallets.find((w) => w.id === wId)
   }, [transaction, wallets])
 
-  const handleDelete = () => {
+  const confirmDelete = () => {
     if (!transaction) return
-    if (confirm("Are you sure you want to delete this transaction?")) {
-      mutations.deleteTransaction.mutate(transaction.id, {
-        onSuccess: () => {
-          toast.success("Transaction deleted")
-          navigate("/transactions")
-        },
-        onError: () => {
-          toast.error("Failed to delete transaction")
-        },
-      })
-    }
+    setIsDeleting(true)
+    navigate("/transactions", { replace: true })
+    mutations.deleteTransaction.mutate(transaction.id, {
+      onSuccess: () => {
+        toast.success("Transaction deleted")
+      },
+      onError: () => {
+        setIsDeleting(false)
+        toast.error("Failed to delete transaction")
+      },
+    })
   }
 
   // Set adaptive header title and action button
@@ -90,16 +113,22 @@ export function TransactionDetailPage() {
   if (!transaction) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-center p-4">
-        <p className="text-sm font-semibold text-foreground">Transaction not found</p>
-        <p className="text-xs text-muted-foreground">The transaction may have been removed or does not exist.</p>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => navigate("/transactions")}
-          className="h-9 text-xs rounded-lg mt-2"
-        >
-          Back to Transactions
-        </Button>
+        {isDeleting ? (
+          <p className="text-xs text-muted-foreground">Deleting transaction…</p>
+        ) : (
+          <>
+            <p className="text-sm font-semibold text-foreground">Transaction not found</p>
+            <p className="text-xs text-muted-foreground">The transaction may have been removed or does not exist.</p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate("/transactions")}
+              className="h-9 text-xs rounded-lg mt-2"
+            >
+              Back to Transactions
+            </Button>
+          </>
+        )}
       </div>
     )
   }
@@ -118,12 +147,6 @@ export function TransactionDetailPage() {
     }
     return null
   }, [transaction])
-
-  const userNote = useMemo(() => {
-    if (chargeData) return chargeData.text || ""
-    const rawNote = (transaction as any).note || transaction.detail || ""
-    return rawNote
-  }, [chargeData, transaction])
 
   const handleEditSubmit = (data: CaptureSubmit) => {
     const res = applyCaptureSubmit(data)
@@ -168,40 +191,12 @@ export function TransactionDetailPage() {
           <span className="font-semibold text-foreground text-right">{transaction.title}</span>
         </div>
 
-        {/* Itemized Base Amount & Fees if applicable */}
-        {chargeData && (chargeData.bankCharge > 0 || chargeData.stampDuty > 0) && (
-          <>
-            <div className="flex items-center justify-between p-3.5">
-              <span className="text-muted-foreground font-medium">Base Amount</span>
-              <span className="font-semibold text-foreground tabular-nums">
-                {currency}{Number(chargeData.base || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-            {chargeData.bankCharge > 0 && (
-              <div className="flex items-center justify-between p-3.5">
-                <span className="text-muted-foreground font-medium">Bank Transfer Charge</span>
-                <span className="font-semibold text-foreground tabular-nums">
-                  +{currency}{Number(chargeData.bankCharge).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-            )}
-            {chargeData.stampDuty > 0 && (
-              <div className="flex items-center justify-between p-3.5">
-                <span className="text-muted-foreground font-medium">Stamp Duty (≥ {currency}10,000)</span>
-                <span className="font-semibold text-foreground tabular-nums">
-                  +{currency}{Number(chargeData.stampDuty).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-            )}
-          </>
-        )}
-
         <div className="flex items-center justify-between p-3.5">
           <div className="flex items-center gap-2 text-muted-foreground font-medium">
             <Tag className="size-4" />
             <span>Category</span>
           </div>
-          <span className="font-semibold capitalize text-foreground">{transaction.category || "General"}</span>
+          <span className="font-semibold text-foreground">{formatCategoryLabel(transaction.category)}</span>
         </div>
 
 
@@ -233,14 +228,62 @@ export function TransactionDetailPage() {
           </span>
         </div>
 
-        {userNote && (
-          <div className="p-3.5 space-y-1.5">
-            <span className="text-muted-foreground font-medium block">Additional Notes</span>
-            <p className="font-medium text-foreground bg-muted/40 rounded-lg p-3 leading-relaxed">
-              {userNote}
-            </p>
+        {/* Cost / Payment Breakdown - Always displayed for full transparency */}
+        <div className="p-3.5 bg-muted/20 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {isIncome ? "Inflow Breakdown" : "Cost Breakdown"}
+            </span>
+            <span className="text-[10px] text-muted-foreground font-medium">
+              {wallet?.name || "Account"}
+            </span>
           </div>
-        )}
+
+          <div className="space-y-1.5 font-medium">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>{isIncome ? "Gross Amount" : "Base Amount"}</span>
+              <span className="text-foreground tabular-nums font-semibold">
+                {currency}
+                {chargeData?.base != null
+                  ? Number(chargeData.base).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  : Math.abs(transaction.amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            {!isIncome && (
+              <>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Bank Transfer Charge</span>
+                  <span className={`tabular-nums ${chargeData?.bankCharge ? "text-foreground font-semibold" : "text-muted-foreground"}`}>
+                    {chargeData?.bankCharge
+                      ? `+${currency}${Number(chargeData.bankCharge).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+                      : `${currency}0.00`}
+                  </span>
+                </div>
+
+                {(Number(chargeData?.stampDuty) > 0 || Math.abs(transaction.amount || 0) >= 10000) && (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Electronic Levy / Stamp Duty</span>
+                    <span className={`tabular-nums ${chargeData?.stampDuty ? "text-foreground font-semibold" : "text-muted-foreground"}`}>
+                      {chargeData?.stampDuty
+                        ? `+${currency}${Number(chargeData.stampDuty).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+                        : `${currency}0.00`}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="flex items-center justify-between pt-1.5 border-t border-border/60 text-xs font-semibold">
+              <span className="text-foreground">
+                {isIncome ? "Total Credited" : "Total Debited"}
+              </span>
+              <span className={`tabular-nums font-bold ${isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
+                {currency}{Math.abs(transaction.amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        </div>
 
         <div className="flex items-center justify-between p-3.5 text-muted-foreground">
           <span>Transaction ID</span>
@@ -261,7 +304,7 @@ export function TransactionDetailPage() {
         <Button
           type="button"
           variant="outline"
-          onClick={handleDelete}
+          onClick={() => setDeleteDialogOpen(true)}
           className="w-full h-11 rounded-xl text-xs font-semibold gap-1.5 border-border bg-card text-red-500 hover:text-red-600 hover:bg-red-500/10 shadow-2xs"
         >
           <Trash2 className="size-3.5" />
@@ -269,6 +312,26 @@ export function TransactionDetailPage() {
         </Button>
       </div>
 
+      {/* Shadcn Alert Dialog for Delete Confirmation */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Transaction?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this transaction and restore the balance to your wallet. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Edit Drawer */}
       {isEditing && (
@@ -280,10 +343,14 @@ export function TransactionDetailPage() {
           currency={currency}
           defaultWalletId={(transaction as any).walletId || (transaction as any).wallet || "w-cash"}
           presets={{
+            id: transaction.id,
             title: transaction.title,
-            amount: transaction.amount != null ? String(transaction.amount) : undefined,
+            amount: chargeData?.base != null ? String(chargeData.base) : (transaction.amount != null ? String(transaction.amount) : undefined),
             category: transaction.category,
             walletId: (transaction as any).walletId || (transaction as any).wallet,
+            dueDate: (transaction as any).date,
+            bankCharge: chargeData?.bankCharge,
+            stampDuty: chargeData?.stampDuty,
           }}
           onSubmit={handleEditSubmit}
         />

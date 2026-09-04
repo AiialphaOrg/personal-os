@@ -227,8 +227,9 @@ export function TransactionsPage() {
             <option value="all">All Categories</option>
             <option value="food">Food & Drinks</option>
             <option value="transport">Transport</option>
+            <option value="data_airtime">Data & Airtime</option>
+            <option value="shopping">Shopping & Market</option>
             <option value="utilities">Utilities & Bills</option>
-            <option value="airtime">Airtime & Data</option>
             <option value="work">Work & Business</option>
             <option value="loan">Loans & Debts</option>
             <option value="general">General</option>

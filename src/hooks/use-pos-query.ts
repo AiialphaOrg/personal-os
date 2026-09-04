@@ -20,7 +20,27 @@ import {
   checkoutPlannedPurchaseApi,
 } from "@/lib/api-client"
 import { useAppDispatch, useAppSelector } from "@/store/hooks"
-import { fetchPosData } from "@/store/dataSlice"
+import {
+  fetchPosData,
+  optimisticAddTransaction,
+  optimisticDeleteTransaction,
+  optimisticAddDebt,
+  optimisticSettleDebt,
+  optimisticDeleteDebt,
+  optimisticUpsertWallet,
+  optimisticDeleteWallet,
+  optimisticAddGoal,
+  optimisticDeleteGoal,
+  optimisticAddTask,
+  optimisticToggleTask,
+  optimisticDeleteTask,
+  optimisticAddSubscription,
+  optimisticDeleteSubscription,
+  optimisticChargeSubscription,
+  optimisticAddPlannedPurchase,
+  optimisticDeletePlannedPurchase,
+  optimisticCheckoutPlannedPurchase,
+} from "@/store/dataSlice"
 
 export function usePosQuery() {
   const dispatch = useAppDispatch()
@@ -48,110 +68,163 @@ export function usePosQuery() {
     metrics: reduxData.metrics,
     isOnline: reduxData.isOnline,
     networkError: reduxData.networkError,
-    isLoading: reduxData.isLoading || query.isLoading,
+    isLoading: reduxData.isLoading && reduxData.wallets.length === 0,
   }
 }
-
 
 export function usePosMutations() {
   const queryClient = useQueryClient()
   const dispatch = useAppDispatch()
+  const reduxData = useAppSelector((state) => state.data)
 
-  const refresh = async () => {
-    await dispatch(fetchPosData())
+  const refresh = () => {
+    void dispatch(fetchPosData())
     queryClient.invalidateQueries({ queryKey: ["posData"] })
+    queryClient.invalidateQueries({ queryKey: ["paginatedTransactions"] })
   }
 
   const addTransaction = useMutation({
-    mutationFn: createTransactionApi,
+    mutationFn: async (txData: any) => {
+      dispatch(optimisticAddTransaction(txData))
+      return createTransactionApi(txData)
+    },
     onSuccess: refresh,
   })
 
   const deleteTransaction = useMutation({
-    mutationFn: deleteTransactionApi,
+    mutationFn: async (id: string) => {
+      dispatch(optimisticDeleteTransaction(id))
+      return deleteTransactionApi(id)
+    },
     onSuccess: refresh,
   })
 
   const addDebt = useMutation({
-    mutationFn: createOrUpdateDebtApi,
+    mutationFn: async (debtData: any) => {
+      dispatch(optimisticAddDebt(debtData))
+      return createOrUpdateDebtApi(debtData)
+    },
     onSuccess: refresh,
   })
 
   const settleDebt = useMutation({
-    mutationFn: ({ id, amount, walletId }: { id: string; amount: number; walletId?: string }) =>
-      settleDebtApi(id, amount, walletId),
+    mutationFn: async ({ id, amount, walletId }: { id: string; amount: number; walletId?: string }) => {
+      dispatch(optimisticSettleDebt({ id, amount, walletId }))
+      return settleDebtApi(id, amount, walletId)
+    },
     onSuccess: refresh,
   })
 
   const deleteDebt = useMutation({
-    mutationFn: deleteDebtApi,
+    mutationFn: async (id: string) => {
+      dispatch(optimisticDeleteDebt(id))
+      return deleteDebtApi(id)
+    },
     onSuccess: refresh,
   })
 
   const addWallet = useMutation({
-    mutationFn: createOrUpdateWalletApi,
+    mutationFn: async (walletData: any) => {
+      dispatch(optimisticUpsertWallet(walletData))
+      return createOrUpdateWalletApi(walletData)
+    },
     onSuccess: refresh,
   })
 
   const deleteWallet = useMutation({
-    mutationFn: deleteWalletApi,
+    mutationFn: async (id: string) => {
+      dispatch(optimisticDeleteWallet(id))
+      return deleteWalletApi(id)
+    },
     onSuccess: refresh,
   })
 
   const addGoal = useMutation({
-    mutationFn: createOrUpdateGoalApi,
+    mutationFn: async (goalData: any) => {
+      dispatch(optimisticAddGoal(goalData))
+      return createOrUpdateGoalApi(goalData)
+    },
     onSuccess: refresh,
   })
 
   const deleteGoal = useMutation({
-    mutationFn: deleteGoalApi,
+    mutationFn: async (id: string) => {
+      dispatch(optimisticDeleteGoal(id))
+      return deleteGoalApi(id)
+    },
     onSuccess: refresh,
   })
 
   const addTask = useMutation({
-    mutationFn: createTaskApi,
+    mutationFn: async (taskData: any) => {
+      dispatch(optimisticAddTask(taskData))
+      return createTaskApi(taskData)
+    },
     onSuccess: refresh,
   })
 
   const toggleTask = useMutation({
-    mutationFn: toggleTaskApi,
+    mutationFn: async (id: string) => {
+      const task = reduxData.tasks.find((t) => t.id === id)
+      dispatch(optimisticToggleTask({ id, completed: !task?.completed }))
+      return toggleTaskApi(id)
+    },
     onSuccess: refresh,
   })
 
   const deleteTask = useMutation({
-    mutationFn: deleteTaskApi,
+    mutationFn: async (id: string) => {
+      dispatch(optimisticDeleteTask(id))
+      return deleteTaskApi(id)
+    },
     onSuccess: refresh,
   })
 
   const addSubscription = useMutation({
-    mutationFn: createOrUpdateSubscriptionApi,
+    mutationFn: async (subData: any) => {
+      dispatch(optimisticAddSubscription(subData))
+      return createOrUpdateSubscriptionApi(subData)
+    },
     onSuccess: refresh,
   })
 
   const deleteSubscription = useMutation({
-    mutationFn: deleteSubscriptionApi,
+    mutationFn: async (id: string) => {
+      dispatch(optimisticDeleteSubscription(id))
+      return deleteSubscriptionApi(id)
+    },
     onSuccess: refresh,
   })
 
   const chargeSubscription = useMutation({
-    mutationFn: ({ id, walletId }: { id: string; walletId?: string }) =>
-      chargeSubscriptionApi(id, walletId),
+    mutationFn: async ({ id, walletId }: { id: string; walletId?: string }) => {
+      dispatch(optimisticChargeSubscription({ id, walletId }))
+      return chargeSubscriptionApi(id, walletId)
+    },
     onSuccess: refresh,
   })
 
   const addPlannedPurchase = useMutation({
-    mutationFn: createOrUpdatePlannedPurchaseApi,
+    mutationFn: async (ppData: any) => {
+      dispatch(optimisticAddPlannedPurchase(ppData))
+      return createOrUpdatePlannedPurchaseApi(ppData)
+    },
     onSuccess: refresh,
   })
 
   const deletePlannedPurchase = useMutation({
-    mutationFn: deletePlannedPurchaseApi,
+    mutationFn: async (id: string) => {
+      dispatch(optimisticDeletePlannedPurchase(id))
+      return deletePlannedPurchaseApi(id)
+    },
     onSuccess: refresh,
   })
 
   const checkoutPlannedPurchase = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: any }) =>
-      checkoutPlannedPurchaseApi(id, payload),
+    mutationFn: async ({ id, payload }: { id: string; payload: any }) => {
+      dispatch(optimisticCheckoutPlannedPurchase({ id, payload }))
+      return checkoutPlannedPurchaseApi(id, payload)
+    },
     onSuccess: refresh,
   })
 

@@ -72,11 +72,9 @@ export function App() {
 
     const token = getStoredToken()
     if (token) {
-      void dispatch(checkAuthThunk()).unwrap().then(() => {
-        void dispatch(fetchPosData())
-      }).catch(() => {
-        // Token invalid, cleared by authSlice
-      })
+      // Fire in parallel: don't wait for auth check before starting data fetch
+      void dispatch(checkAuthThunk())
+      void dispatch(fetchPosData())
     }
 
     const handleOnline = () => {

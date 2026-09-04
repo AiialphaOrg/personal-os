@@ -1,6 +1,6 @@
 import type { CaptureSubmit } from "@/components/capture-sheet"
 import { store } from "@/store"
-import { addTransactionThunk, addTaskThunk, upsertDebtThunk } from "@/store/dataSlice"
+import { addTransactionThunk, addTaskThunk, upsertDebtThunk, fetchPosData } from "@/store/dataSlice"
 import { type DebtKind } from "@/lib/storage"
 
 function newId() {
@@ -61,7 +61,7 @@ export function applyCaptureSubmit(data: CaptureSubmit): { ok: boolean; error?: 
     const amount = Number(data.amount)
     if (!amount || amount <= 0) return { ok: false, error: "Enter a valid amount" }
 
-    const debtId = `d-${Date.now()}`
+    const debtId = data.id || `d-${Date.now()}`
     const kind: DebtKind = data.debtKind || (data.type === "i_owe" ? "personal" : "loan")
 
     void store.dispatch(
@@ -74,10 +74,13 @@ export function applyCaptureSubmit(data: CaptureSubmit): { ok: boolean; error?: 
         kind,
         dueDate: data.dueDate,
         walletId: data.walletId,
-        isCashLoan: true,
+        isCashLoan: !data.id,
+        note: data.note,
         status: "open",
       })
-    )
+    ).then(() => {
+      store.dispatch(fetchPosData())
+    })
 
     return { ok: true }
   }
@@ -91,15 +94,18 @@ export function applyCaptureSubmit(data: CaptureSubmit): { ok: boolean; error?: 
 
   void store.dispatch(
     addTransactionThunk({
-      id: newId(),
+      id: data.id || newId(),
       type: data.type,
       title,
       amount,
       category,
       walletId: wid,
-      date: new Date().toISOString().split("T")[0],
+      date: data.dueDate || new Date().toISOString().split("T")[0],
+      note: data.note,
     })
-  )
+  ).then(() => {
+    store.dispatch(fetchPosData())
+  })
 
   return { ok: true }
 }

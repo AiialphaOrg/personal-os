@@ -1,27 +1,38 @@
 import { useEffect, useState } from "react"
 import { Logo } from "@/components/Logo"
+import { getStoredToken } from "@/lib/api-client"
 
-export function SplashScreen({ minDuration = 600 }: { minDuration?: number }) {
-  const [visible, setVisible] = useState(true)
+export function SplashScreen() {
+  const [visible, setVisible] = useState(() => {
+    // If user has a token, do not show secondary full splash - render UI directly
+    const token = getStoredToken()
+    return !token
+  })
   const [fading, setFading] = useState(false)
 
   useEffect(() => {
     // Hide the initial HTML inline splash screen once React mounts
     const htmlSplash = document.getElementById("pos-inline-splash")
     if (htmlSplash) {
-      htmlSplash.style.display = "none"
+      htmlSplash.style.transition = "opacity 0.15s ease"
+      htmlSplash.style.opacity = "0"
+      setTimeout(() => {
+        htmlSplash.style.display = "none"
+      }, 150)
     }
+
+    if (!visible) return
 
     const timer = setTimeout(() => {
       setFading(true)
       const fadeTimer = setTimeout(() => {
         setVisible(false)
-      }, 400)
+      }, 150)
       return () => clearTimeout(fadeTimer)
-    }, minDuration)
+    }, 200)
 
     return () => clearTimeout(timer)
-  }, [minDuration])
+  }, [visible])
 
   if (!visible) return null
 

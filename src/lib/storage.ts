@@ -11,6 +11,7 @@ export type CaptureType =
   | "bill"
   | "i_owe"
   | "owed_to_me"
+  | "debt"
 
 export type DebtDirection = "i_owe" | "owed_to_me"
 export type DebtKind = "loan" | "client" | "personal"
@@ -123,8 +124,42 @@ export const DEFAULT_WALLETS: WalletItem[] = [
 export const DEFAULT_TIMELINE: TimelineItem[] = []
 export const DEFAULT_DEBTS: DebtItem[] = []
 
-export const EXPENSE_CATEGORIES = ["general", "food", "transport", "data_airtime"] as const
+export const EXPENSE_CATEGORIES = ["food", "transport", "data_airtime", "shopping", "general"] as const
 export const INCOME_CATEGORIES = ["salary", "business", "investment", "general"] as const
+
+export const QUICK_EXPENSE_TAGS: Record<string, string[]> = {
+  food: ["Lunch", "Dinner", "Groceries", "Drinks & Snacks"],
+  transport: ["Fuel", "Cab / Bolt", "Bus Fare", "Bike"],
+  data_airtime: ["Data Bundle", "Airtime"],
+  shopping: ["Cables / Charger", "Clothes / Caps", "Market Items", "Toiletries"],
+  general: ["Emergency", "Miscellaneous"],
+}
+
+export const QUICK_INCOME_TAGS: Record<string, string[]> = {
+  salary: ["Monthly Salary", "Salary Advance", "Work Bonus", "Allowance"],
+  business: ["Client Project", "Product Sales", "Consulting", "Freelance Gig"],
+  investment: ["Dividends", "Crypto Profit", "Stock Returns"],
+  general: ["Gift / Dash", "Refund / Reversal", "Side Hustle"],
+}
+
+export const QUICK_DEBT_TAGS: Record<"i_owe" | "owed_to_me", string[]> = {
+  i_owe: [
+    "Borrowed Cash",
+    "Food / Dinner",
+    "Fuel & Transport",
+    "Shopping on Credit",
+    "Emergency Loan",
+    "Rent Share",
+  ],
+  owed_to_me: [
+    "Lent Cash",
+    "Freelance Invoice",
+    "Bill Split",
+    "Project Balance",
+    "Refund Due",
+    "Loan Repayment",
+  ],
+}
 
 export const SUBSCRIPTION_CATEGORIES = [
   { id: "services", label: "Services" },
@@ -140,6 +175,21 @@ export const WISHLIST_CATEGORIES = [
   { id: "services", label: "Services" },
   { id: "general", label: "Other" },
 ] as const
+
+export function formatCategoryLabel(category?: string): string {
+  if (!category) return "General"
+  const cat = category.toLowerCase()
+  if (cat === "data_airtime" || cat === "airtime") return "Data & Airtime"
+  if (cat === "food") return "Food & Drinks"
+  if (cat === "transport") return "Transport"
+  if (cat === "shopping" || cat === "market") return "Shopping & Market"
+  if (cat === "general") return "General"
+  if (cat === "utilities") return "Utilities"
+  if (cat === "salary") return "Salary"
+  if (cat === "business") return "Business"
+  if (cat === "investment") return "Investment"
+  return category.charAt(0).toUpperCase() + category.slice(1).replace(/_/g, " ")
+}
 
 
 

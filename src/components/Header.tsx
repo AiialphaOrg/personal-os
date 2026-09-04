@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router"
-import { Bell, ChevronLeft, Search, WifiOff, RefreshCw } from "lucide-react"
+import { ChevronLeft, Search, WifiOff, RefreshCw } from "lucide-react"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { useHeaderStore } from "@/stores/header-store"
 import { useAppDispatch, useAppSelector } from "@/store/hooks"
@@ -112,13 +112,13 @@ export function Header({ onOpenSearch }: HeaderProps) {
                   ⌘K
                 </kbd>
               </button>
-              <button
+              {/* <button
                 type="button"
                 className="flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                 aria-label="Notifications"
               >
                 <Bell className="size-4" />
-              </button>
+              </button> */}
             </>
           )}
         </div>
@@ -139,7 +139,7 @@ export function Header({ onOpenSearch }: HeaderProps) {
               <ChevronLeft className="size-5" />
             </button>
           ) : null}
-          <h1 className="text-sm sm:text-base font-bold tracking-tight text-foreground truncate">
+          <h1 className="text-base sm:text-lg font-bold tracking-tight text-foreground truncate">
             {pageTitle}
           </h1>
         </div>
@@ -157,13 +157,13 @@ export function Header({ onOpenSearch }: HeaderProps) {
               >
                 <Search className="size-4" />
               </button>
-              <button
+              {/* <button
                 type="button"
                 className="flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                 aria-label="Notifications"
               >
                 <Bell className="size-4" />
-              </button>
+              </button> */}
             </>
           )}
         </div>

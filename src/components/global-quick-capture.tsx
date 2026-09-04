@@ -21,7 +21,7 @@ export function GlobalQuickCapture() {
   const onSubmit = async (data: CaptureSubmit) => {
     try {
       if (data.type === "i_owe" || data.type === "owed_to_me") {
-        await mutations.addDebt.mutateAsync({
+        mutations.addDebt.mutateAsync({
           person: data.person || "Someone",
           amount: Number(data.amount) || 0,
           direction: data.type,
@@ -30,9 +30,11 @@ export function GlobalQuickCapture() {
           walletId: data.walletId || defaultWallet,
           isCashLoan: true,
           category: data.category,
+        }).catch((err: any) => {
+          toast.error(err.message || "Failed to sync debt with server")
         })
       } else {
-        await mutations.addTransaction.mutateAsync({
+        mutations.addTransaction.mutateAsync({
           title: data.title,
           amount: Number(data.amount) || 0,
           type: data.type,
@@ -40,9 +42,11 @@ export function GlobalQuickCapture() {
           walletId: data.walletId || defaultWallet,
           fromWallet: data.fromWallet,
           toWallet: data.toWallet,
+        }).catch((err: any) => {
+          toast.error(err.message || "Failed to sync transaction with server")
         })
       }
-      toast.success("Saved online")
+      toast.success("Saved")
       closeCapture()
     } catch (err: any) {
       toast.error(err.message || "Failed to save")

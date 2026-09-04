@@ -27,6 +27,8 @@ const CATEGORY_COLORS: Record<string, string> = {
   utilities: "#8b5cf6",
   airtime: "#10b981",
   data_airtime: "#10b981",
+  shopping: "#ec4899",
+  market: "#ec4899",
   work: "#06b6d4",
   loan: "#ef4444",
   general: "#64748b",
@@ -124,7 +126,7 @@ export function InsightsPage() {
   }, [transactions, selectedMonth])
 
   const pieChartData = categories.map((c) => ({
-    name: c.category === "data_airtime" ? "Airtime & Data" : c.category.charAt(0).toUpperCase() + c.category.slice(1),
+    name: c.category === "data_airtime" ? "Data & Airtime" : c.category.charAt(0).toUpperCase() + c.category.slice(1),
     value: c.total,
     color: CATEGORY_COLORS[c.category.toLowerCase()] || DEFAULT_COLOR,
   }))
@@ -238,7 +240,7 @@ export function InsightsPage() {
                                 style={{ backgroundColor: color }}
                               />
                               <span className="font-semibold capitalize text-foreground group-hover:text-primary transition-colors truncate">
-                                {c.category === "data_airtime" ? "Airtime & Data" : c.category}
+                                {c.category === "data_airtime" ? "Data & Airtime" : c.category}
                               </span>
                               <span className="text-[10px] text-muted-foreground shrink-0">
                                 ({c.count} {c.count === 1 ? "txn" : "txns"})
